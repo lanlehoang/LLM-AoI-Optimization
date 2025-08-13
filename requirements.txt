@@ -1,0 +1,6 @@
+# Use python 3.10 for this project
+dotenv # Environment variable management
+gym # Reinforcement learning library
+numpy # Numerical operations
+pandas # Data manipulation and analysis
+litellm # Lightweight LLM library

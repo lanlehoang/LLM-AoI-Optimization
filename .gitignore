@@ -1,0 +1,14 @@
+# Visual Studio Code settings
+.vscode/
+
+# Cache files
+.cache/
+
+# Eggs
+*.egg*
+
+# Env variables
+.env
+
+# Venv (should named aoi_venv)
+.aoi_venv/

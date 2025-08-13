@@ -1,0 +1,14 @@
+system:
+  # Height config in kilometers
+  h_satellite: 500
+  r_earth: 6400
+  # Speed of light in km/s
+  c: 300000
+
+random:
+  # Seed for random number generator
+  seed: 42
+  # Random mu for different Poisson processes
+  mu:
+    lower: 100
+    upper: 200
