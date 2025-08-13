@@ -1,16 +1,13 @@
-system:
+satellite:
   # Height config in kilometers
-  h_satellite: 500
-  r_earth: 6400
-  # Speed of light in km/s
-  c: 300000
-  # Number of satellites
+  height: 500
   n_satellites: 1000
-
-random:
-  # Seed for random number generator
-  seed: 42
   # Random mu for different Poisson processes
   mu:
     lower: 100
     upper: 200
+
+physics:
+  r_earth: 6400 # km
+  c: 300000 # km/s
+  simulation_time: 10 # seconds

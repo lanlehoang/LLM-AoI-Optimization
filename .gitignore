@@ -11,4 +11,4 @@
 .env
 
 # Venv (should named aoi_venv)
-.aoi_venv/
+aoi_venv/
