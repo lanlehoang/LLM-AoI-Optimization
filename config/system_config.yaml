@@ -4,6 +4,8 @@ system:
   r_earth: 6400
   # Speed of light in km/s
   c: 300000
+  # Number of satellites
+  n_satellites: 1000
 
 random:
   # Seed for random number generator
