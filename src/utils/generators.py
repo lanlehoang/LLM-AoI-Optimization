@@ -1,9 +1,10 @@
 import numpy as np
+from src.utils.geometry import convert_polar_to_cartesian
 
 RANDOM_SEED = 42
 
 
-def generate_satallite_positions(num_satellites, radius):
+def generate_satellite_positions(num_satellites, radius):
     """
     Generate random positions over polar coordinates for a given number of satellites.
     Convert polar coordinates to Cartesian coordinates.
@@ -11,10 +12,7 @@ def generate_satallite_positions(num_satellites, radius):
     """
     theta = np.random.uniform(0, 2*np.pi, num_satellites)
     phi = np.random.uniform(0, np.pi/2, num_satellites)     # Only consider the Northern hemisphere
-    x = radius * np.sin(phi) * np.cos(theta)
-    y = radius * np.sin(phi) * np.sin(theta)
-    z = radius * np.cos(phi)
-    return np.array([x, y, z]).T
+    return convert_polar_to_cartesian(theta, phi, radius)
 
 
 def generate_satellite_processing_rates(num_satellites, lower, upper):
@@ -47,3 +45,28 @@ def choose_start_end(satellite_positions):
             )
             if angle > 3*np.pi/4:  # 135 degrees in radians
                 return i, j
+    err_msg = (
+        "No valid start and end satellites found with angle > 135 degrees. "
+        "Consider adjusting satellite positions or the number of satellites."
+    )
+    raise ValueError(err_msg)
+            
+
+def generate_all_packages(mu, simulation_time):
+    """
+    Generate all packages at the start satellite with processing times based on the given mu.
+    """
+    time = generate_processing_time(mu)
+    package_times = []
+    while time < simulation_time:
+        processing_time = generate_processing_time(mu)
+        package_times.append(time)
+        time += processing_time
+
+    if not package_times:
+        err_msg = (
+            f"No packages generated within the simulation time {simulation_time}. "
+            f"Consider increasing mu ({mu}) or simulation_time ({simulation_time})."
+        )
+        raise ValueError(err_msg)
+    return list(enumerate(package_times))

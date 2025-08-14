@@ -6,6 +6,7 @@ satellite:
   mu:
     lower: 100
     upper: 200
+    start_scale: 2.0  # Make S0 generate more packages to simulate congestion. Should be > 1.0
 
 physics:
   r_earth: 6400 # km
