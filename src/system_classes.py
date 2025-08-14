@@ -76,3 +76,38 @@ class Package:
         Record the end time of the package processing.
         """
         self.end_time = end_time
+
+
+class ExperienceBuffer:
+    """
+    Store incomplete experiences e = (s, a, r, s').
+    Necessary because s' IS NOT IMMEDIATELY AVAILABLE after taking action a.
+    The next time the same package is processed, we can update s' and push it out of the buffer.
+    """
+    def __init__(self):
+        self.buffer = {}
+
+    def add_experience(self, package_id, experience):
+        """
+        Add an experience to the buffer.
+        """
+        self.buffer[package_id] = experience
+
+    def update_experience(self, package_id, new_state):
+        """
+        Update the state of an experience in the buffer based on package_id.
+        """
+        if package_id in self.buffer:
+            experience = self.buffer[package_id]
+            experience[-1] = new_state
+        else:
+            raise KeyError(f"Package ID {package_id} not found in buffer.")
+        
+    def push_experience(self, package_id):
+        """
+        Remove an experience from the buffer based on package_id.
+        """
+        if package_id in self.buffer:
+            return self.buffer.pop(package_id)
+        else:
+            raise KeyError(f"Package ID {package_id} not found in buffer.")

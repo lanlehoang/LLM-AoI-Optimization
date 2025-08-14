@@ -94,9 +94,7 @@ class SatelliteEnv(Env):
 
         # Initialize state (customize as needed)
         self.state = None  # Replace with actual state initialization
-
-        info = {}
-        return self.state, info
+        return self.state, {}
 
     def step(self, action):
         """
