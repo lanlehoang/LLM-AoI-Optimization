@@ -10,8 +10,8 @@ def generate_satellite_positions(num_satellites, radius):
     Convert polar coordinates to Cartesian coordinates.
     Ouput shape: (num_satellites, 3)
     """
-    theta = np.random.uniform(0, 2*np.pi, num_satellites)
-    phi = np.random.uniform(0, np.pi/2, num_satellites)     # Only consider the Northern hemisphere
+    theta = np.random.uniform(0, 2 * np.pi, num_satellites)
+    phi = np.random.uniform(0, np.pi / 2, num_satellites)  # Only consider the Northern hemisphere
     return convert_polar_to_cartesian(theta, phi, radius)
 
 
@@ -27,7 +27,7 @@ def generate_processing_time(mu):
     """
     Generate processing times for a given mean (mu) using an exponential distribution.
     """
-    return np.random.exponential(1/mu)
+    return np.random.exponential(1 / mu)
 
 
 def choose_start_end(satellite_positions):
@@ -40,17 +40,17 @@ def choose_start_end(satellite_positions):
     for i in range(n_satellites):
         for j in range(i + 1, satellite_positions.shape[0]):
             angle = np.arccos(
-                np.dot(satellite_positions[i], satellite_positions[j]) / \
-                (np.linalg.norm(satellite_positions[i]) * np.linalg.norm(satellite_positions[j]))
+                np.dot(satellite_positions[i], satellite_positions[j])
+                / (np.linalg.norm(satellite_positions[i]) * np.linalg.norm(satellite_positions[j]))
             )
-            if angle > 3*np.pi/4:  # 135 degrees in radians
+            if angle > 3 * np.pi / 4:  # 135 degrees in radians
                 return i, j
     err_msg = (
         "No valid start and end satellites found with angle > 135 degrees. "
         "Consider adjusting satellite positions or the number of satellites."
     )
     raise ValueError(err_msg)
-            
+
 
 def generate_all_packages(mu, simulation_time):
     """

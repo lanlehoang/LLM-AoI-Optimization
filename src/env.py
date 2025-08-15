@@ -4,8 +4,8 @@ import numpy as np
 from src.utils.generators import *
 from src.utils.geometry import *
 from src.utils.get_config import get_system_config
-import heapq    # Used for event priority queue
-from src.system_classes import Event, Satellite, Package, EventType
+import heapq  # Used for event priority queue
+from src.system_classes import Event, Satellite, Package, EventType, ExperienceBuffer
 
 # Set random seed for reproducibility
 np.random.seed(RANDOM_SEED)
@@ -15,12 +15,14 @@ class SatelliteEnv(Env):
     """
     Custom Gym environment for satellite operations.
     """
+
     def __init__(self):
         super().__init__()
         self.system_config = get_system_config()
-        self.n_satellites = self.system_config['n_satellites']
-        self.radius = self.system_config['physics']['r_earth'] + \
-            self.system_config['satellite']['height']  # Radius of the satellites' orbit
+        self.n_satellites = self.system_config["n_satellites"]
+        self.radius = (
+            self.system_config["physics"]["r_earth"] + self.system_config["satellite"]["height"]
+        )  # Radius of the satellites' orbit
 
         # Initialize satellite positions
         satellite_positions = generate_satellite_positions(self.n_satellites, self.radius)
@@ -32,28 +34,26 @@ class SatelliteEnv(Env):
         self.end = end
 
         # Initialize satellite processing rates
-        mu_lower = self.system_config['satellite']['processing_rate']['lower']
-        mu_upper = self.system_config['satellite']['processing_rate']['upper']
+        mu_lower = self.system_config["satellite"]["processing_rate"]["lower"]
+        mu_upper = self.system_config["satellite"]["processing_rate"]["upper"]
         satellite_processing_rates = generate_satellite_processing_rates(
-            self.n_satellites,
-            lower=mu_lower,
-            upper=mu_upper
+            self.n_satellites, lower=mu_lower, upper=mu_upper
         )
         # Scale processing rates for start satellite to intentionally create congestion in the network,
         # which forces the agent to learn dynamic routing strategies
-        satellite_processing_rates[start] *= self.system_config['satellite']['mu']['start_scale']
+        satellite_processing_rates[start] *= self.system_config["satellite"]["mu"]["start_scale"]
 
         # Create satellite objects
         self.satellites = [
             Satellite(
-                position=satellite_positions[i],
-                processing_rate=satellite_processing_rates[i]
-            ) for i in range(self.n_satellites)
+                position=satellite_positions[i], processing_rate=satellite_processing_rates[i]
+            )
+            for i in range(self.n_satellites)
         ]
 
         # Generate all packages at the start satellite
         mu = self.satellites[self.start].processing_rate
-        simulation_time = self.system_config['simulation_time']
+        simulation_time = self.system_config["simulation_time"]
         packages = generate_all_packages(mu, simulation_time)
 
         self.packages = [Package(pkg_id, gen_time) for pkg_id, gen_time in packages]
@@ -61,11 +61,16 @@ class SatelliteEnv(Env):
             Event(pkg.package_id, pkg.generation_time, EventType.PROCESS, self.start)
             for pkg in self.packages
         ]
-        self.satellites[self.start].set_queue_length(len(self.packages))  # Set initial queue length for start satellite
+        self.satellites[self.start].set_queue_length(
+            len(self.packages)
+        )  # Set initial queue length for start satellite
+
+        # Initialize the buffer for storing experiences
+        self.buffer = ExperienceBuffer()
 
         # State and action spaces
         # self.action_space = None  # To be decided
-        self.state = None # To be decided
+        self.state = None  # To be decided
 
     def reset(self, *, seed=None, options=None):
         """
@@ -82,7 +87,7 @@ class SatelliteEnv(Env):
 
         # Generate all packages at the start satellite
         mu = self.satellites[self.start].processing_rate
-        simulation_time = self.system_config['simulation_time']
+        simulation_time = self.system_config["simulation_time"]
         packages = generate_all_packages(mu, simulation_time)
 
         self.packages = [Package(pkg_id, gen_time) for pkg_id, gen_time in packages]
@@ -90,7 +95,9 @@ class SatelliteEnv(Env):
             Event(pkg.package_id, pkg.generation_time, EventType.PROCESS, self.start)
             for pkg in self.packages
         ]
-        self.satellites[self.start].set_queue_length(len(self.packages))  # Set initial queue length for start satellite
+        self.satellites[self.start].set_queue_length(
+            len(self.packages)
+        )  # Set initial queue length for start satellite
 
         # Initialize state (customize as needed)
         self.state = None  # Replace with actual state initialization

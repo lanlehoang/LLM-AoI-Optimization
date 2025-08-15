@@ -12,7 +12,7 @@ class ConfigPaths(Enum):
 
 
 def get_system_config():
-    with open(ConfigPaths.SYSTEM_CONFIG.value, 'r') as file:
+    with open(ConfigPaths.SYSTEM_CONFIG.value, "r") as file:
         config = yaml.safe_load(file)
     return config
 

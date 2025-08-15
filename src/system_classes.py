@@ -8,6 +8,7 @@ class EventType(Enum):
     - PROCESS: A package is processed by satellite i at time t
     - TRANSFER: A package is transferred from satellite i to j at time t
     """
+
     PROCESS = "process"
     TRANSFER = "transfer"
 
@@ -26,7 +27,7 @@ class Event:
 
     def __repr__(self):
         return f"Event(time={self.time}, type={self.type}, src={self.src}, dst={self.dst})"
-    
+
 
 class Satellite:
     def __init__(self, position, processing_rate, queue_length=0):
@@ -48,7 +49,7 @@ class Satellite:
             self.queue_length -= 1
         else:
             raise ValueError("Queue is empty, cannot dequeue package.")
-        
+
     def reset_queue(self):
         """
         Reset the satellite's queue length to zero.
@@ -84,6 +85,7 @@ class ExperienceBuffer:
     Necessary because s' IS NOT IMMEDIATELY AVAILABLE after taking action a.
     The next time the same package is processed, we can update s' and push it out of the buffer.
     """
+
     def __init__(self):
         self.buffer = {}
 
@@ -102,7 +104,7 @@ class ExperienceBuffer:
             experience[-1] = new_state
         else:
             raise KeyError(f"Package ID {package_id} not found in buffer.")
-        
+
     def push_experience(self, package_id):
         """
         Remove an experience from the buffer based on package_id.
