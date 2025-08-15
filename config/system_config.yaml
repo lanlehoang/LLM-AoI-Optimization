@@ -2,6 +2,8 @@ satellite:
   # Height config in kilometers
   height: 500
   n_satellites: 1000
+  d_max: 1000 # km
+  n_neighbours: 10 # Maximum number of nearest neighbours to consider per satellite
   # Random mu for different Poisson processes
   mu:
     lower: 100

@@ -3,8 +3,9 @@ from src.utils.get_config import get_system_config
 
 config = get_system_config()
 
-R_EARTH = config['physics']['r_earth']
-R_SATELLITE = config['satellite']['height'] + R_EARTH  # Radius of the satellites' orbit
+R_SATELLITE = config["satellite"]["height"] + config["physics"]["r_earth"]
+D_MAX = config["satellite"]["d_max"]
+N_NEIGHBOURS = config["satellite"]["n_neighbours"]
 
 
 def convert_polar_to_cartesian(theta: np.ndarray, phi: np.ndarray, radius: float):
@@ -30,26 +31,31 @@ def convert_cartesian_to_polar(cartesian_coords: np.ndarray, radius: float):
 def find_neighbours(cur_idx, cur_pos, dst_pos, satellite_positions):
     """
     Find all neighbours of the current satellite that satisfy the following conditions:
-    - Line-of-sight exists: The paths between the current and neighbour satellites are not
-    obstructed by the Earth.
+    - Within the communication range: The distance to the neighbour is less than D_MAX.
     - Forward path: The angles made by the neighbours satellite, the current satellite,
     and the destination satellite are acute.
+    Returns N_NEIGHBOURS nearest neighbours.
     """
+    # Exclude the current satellite itself
+    satellite_positions = np.delete(satellite_positions, cur_idx, axis=0)
+
+    # Calculate distances to all other satellites
     neighbour_vectors = satellite_positions - cur_pos
-    # LoS condition
-    los = np.linalg.norm(neighbour_vectors, axis=1) < R_SATELLITE
+    distances = np.linalg.norm(neighbour_vectors, axis=1)
+
+    # Communication range filter
+    within_range = distances < D_MAX
 
     # Forward path condition
     dst_vector = dst_pos - cur_pos
     forward = np.dot(neighbour_vectors, dst_vector) > 0
 
     # Combine conditions
-    neighbours = np.where(los & forward)[0]
-    
-    # Exclude the current satellite itself
-    neighbours = neighbours[neighbours != cur_idx]
+    neighbours = np.where(within_range & forward)[0]
 
-    return neighbours.tolist() if len(neighbours) > 0 else None
+    # Sort neighbours by distance to the current satellite
+    sorted_indices = np.argsort(distances[neighbours])
+    return neighbours[sorted_indices][:N_NEIGHBOURS].tolist() if len(neighbours) > 0 else []
 
 
 def compute_arc_length(cur_pos, dst_pos):
@@ -69,4 +75,3 @@ def compute_arc_length(cur_pos, dst_pos):
     # Calculate the arc length
     arc_length = R_SATELLITE * np.sqrt(theta_diff**2 + phi_diff**2)
     return arc_length
-    
