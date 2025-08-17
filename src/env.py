@@ -4,8 +4,7 @@ import numpy as np
 from src.utils.generators import *
 from src.utils.geometry import *
 from src.utils.get_config import get_system_config
-import heapq  # Used for event priority queue
-from src.system_classes import Event, Satellite, Package, EventType, ExperienceBuffer
+from env_classes import *
 
 # Set random seed for reproducibility
 np.random.seed(RANDOM_SEED)
@@ -64,10 +63,14 @@ class SatelliteEnv(Env):
         packages = generate_all_packages(mu, simulation_time)
 
         self.packages = [Package(pkg_id, gen_time) for pkg_id, gen_time in packages]
-        self.event_queue = [
-            Event(pkg.package_id, pkg.generation_time, EventType.PROCESS, self.start)
-            for pkg in self.packages
-        ]
+        self.event_queue = EventQueue(
+            [
+                Event(
+                    pkg.package_id, pkg.generation_time, EventType.PROCESS, self.start
+                )
+                for pkg in self.packages
+            ]
+        )
         self.satellites[self.start].set_queue_length(
             len(self.packages)
         )  # Set initial queue length for start satellite
@@ -77,33 +80,7 @@ class SatelliteEnv(Env):
 
         # State and action spaces
         self.action_space = Discrete(self.system_config["n_neighbours"])
-        self.state = None  # To be decided
-
-    def _get_state(self, cur_satellite):
-        """
-        The state at each step includes:
-        - The current satellite and the destination positions
-        - State of each neighbour, including its position, processing rate, and queue length
-        """
-        # Current and destination positions
-        cur_pos = self.satellite_positions[cur_satellite]
-        dst_pos = self.satellite_positions[self.end]
-
-        # Find all neighbours
-        neighbour_indices = find_neighbours(
-            cur_idx=cur_satellite,
-            dst_pos=dst_pos,
-            satellite_positions=self.satellite_positions,
-        )
-        neighbours = [self.satellites[i] for i in neighbour_indices]
-        neighbour_states = np.array([])
-        for sat in neighbours:
-            neighbour_states = np.hstack(
-                [neighbour_states, sat.position, sat.processing_rate, sat.queue_length]
-            )
-
-        # Concatenate everything and flatten into an 1-d array
-        return np.hstack([cur_pos, dst_pos, *neighbour_states])
+        self.state = self.get_state(self.start)
 
     def reset(self, *, seed=None, options=None):
         """
@@ -133,8 +110,77 @@ class SatelliteEnv(Env):
         )  # Set initial queue length for start satellite
 
         # Initialize state (customize as needed)
-        self.state = None  # Replace with actual state initialization
+        self.state = self.get_state(self.start)
         return self.state, {}
+
+    def get_state(self, cur_satellite):
+        """
+        The state at each step includes:
+        - The current satellite and the destination positions
+        - State of each neighbour, including its position, processing rate, and queue length
+        """
+        # Current and destination positions
+        cur_pos = self.satellite_positions[cur_satellite]
+        dst_pos = self.satellite_positions[self.end]
+
+        # Find all neighbours
+        neighbour_indices = find_neighbours(
+            cur_idx=cur_satellite,
+            dst_pos=dst_pos,
+            satellite_positions=self.satellite_positions,
+        )
+        neighbours = [self.satellites[i] for i in neighbour_indices]
+        neighbour_states = np.array([])
+        for sat in neighbours:
+            neighbour_states = np.hstack(
+                [neighbour_states, sat.position, sat.processing_rate, sat.queue_length]
+            )
+
+        # Concatenate everything and flatten into an 1-d array
+        return np.hstack([cur_pos, dst_pos, neighbour_states])
+
+    def handle_transfer_event(self, event: Event):
+        """
+        Handle the TRANSFER event in the event queue.
+        If the package is sent to the destination, record the event time as the package arrival time.
+        Else, generate its processing time and put a PROCESS event into the queue
+        Finally, update the previous state relating to the package in the buffer
+        """
+        # Unpack event attributes
+        package_id = event.package_id
+        event_time = event.event_time
+        src = event.src
+        dst = event.dst
+
+        # Calculate transmission time
+        c = self.system_config["physics"]["c"]
+        dist = np.linalg.norm(
+            self.satellite_positions[src] - self.satellite_positions[dst]
+        )
+        arrival_time = event_time + dist / c
+
+        # Handle the transfer logic
+        if dst == self.end:
+            self.packages[package_id].record_end_time(arrival_time)
+        else:
+            sat: Satellite = self.satellites[dst]
+            start_time = min(
+                sat.busy_time, arrival_time
+            )  # Start processing at arrival, or when the satellite is free
+            processing_time = generate_processing_time(mu=sat.processing_rate)
+            sat.enqueue_package(processing_time=processing_time)
+            new_event = Event(
+                package_id=package_id,
+                event_time=start_time + processing_time,
+                event_type=EventType.PROCESS.value,
+                src=dst,
+            )
+            self.event_queue.push(new_event)
+
+        # Update the experience buffer
+        new_state = self.get_state(cur_satellite=dst)
+        self.buffer.update_experience(package_id=package_id, new_state=new_state)
+        # --- TO BE CONTINUED ---
 
     def step(self, action):
         """

@@ -1,4 +1,10 @@
+"""
+Define classes to be used in the env.py file
+"""
+
 from enum import Enum
+import heapq  # Used for event priority queue
+from typing import List
 
 
 class EventType(Enum):
@@ -14,10 +20,10 @@ class EventType(Enum):
 
 
 class Event:
-    def __init__(self, package_id, time, type, src, dst=None):
+    def __init__(self, package_id, event_time, event_type, src, dst=None):
         self.package_id = package_id
-        self.time = time
-        self.type = type
+        self.event_time = event_time
+        self.event_type = event_type
         self.src = src
         self.dst = dst  # Destination is None for PROCESS events
 
@@ -26,7 +32,21 @@ class Event:
         return self.time < other.time
 
     def __repr__(self):
-        return f"Event(time={self.time}, type={self.type}, src={self.src}, dst={self.dst})"
+        return (
+            f"Event(time={self.time}, type={self.type}, src={self.src}, dst={self.dst})"
+        )
+
+
+class EventQueue:
+    def __init__(self, events: List[Event]):
+        heapq.heapify(events)
+        self.events = events
+
+    def push(self, new_event):
+        heapq.heappush(self.events, new_event)
+
+    def pop(self):
+        return heapq.heappop(self.events)
 
 
 class Satellite:
@@ -34,12 +54,15 @@ class Satellite:
         self.position = position
         self.processing_rate = processing_rate
         self.queue_length = queue_length
+        self.busy_time = 0  # This satellite will be busy until this time
 
-    def enqueue_package(self):
+    def enqueue_package(self, processing_time):
         """
         Increment the queue length of the satellite.
+        Add processing_time to busy time
         """
         self.queue_length += 1
+        self.busy_time += processing_time
 
     def dequeue_package(self):
         """
@@ -105,7 +128,7 @@ class ExperienceBuffer:
         else:
             raise KeyError(f"Package ID {package_id} not found in buffer.")
 
-    def push_experience(self, package_id):
+    def pop_experience(self, package_id):
         """
         Remove an experience from the buffer based on package_id.
         """
