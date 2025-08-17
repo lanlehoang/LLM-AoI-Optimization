@@ -66,7 +66,10 @@ class SatelliteEnv(Env):
         self.event_queue = EventQueue(
             [
                 Event(
-                    pkg.package_id, pkg.generation_time, EventType.PROCESS, self.start
+                    pkg.package_id,
+                    pkg.generation_time,
+                    EventType.PROCESS.value,
+                    self.start,
                 )
                 for pkg in self.packages
             ]
@@ -101,10 +104,17 @@ class SatelliteEnv(Env):
         packages = generate_all_packages(mu, simulation_time)
 
         self.packages = [Package(pkg_id, gen_time) for pkg_id, gen_time in packages]
-        self.event_queue = [
-            Event(pkg.package_id, pkg.generation_time, EventType.PROCESS, self.start)
-            for pkg in self.packages
-        ]
+        self.event_queue = EventQueue(
+            [
+                Event(
+                    pkg.package_id,
+                    pkg.generation_time,
+                    EventType.PROCESS.value,
+                    self.start,
+                )
+                for pkg in self.packages
+            ]
+        )
         self.satellites[self.start].set_queue_length(
             len(self.packages)
         )  # Set initial queue length for start satellite
@@ -164,7 +174,7 @@ class SatelliteEnv(Env):
             self.packages[package_id].record_end_time(arrival_time)
         else:
             sat: Satellite = self.satellites[dst]
-            start_time = min(
+            start_time = max(
                 sat.busy_time, arrival_time
             )  # Start processing at arrival, or when the satellite is free
             processing_time = generate_processing_time(mu=sat.processing_rate)

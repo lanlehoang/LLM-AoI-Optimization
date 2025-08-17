@@ -29,18 +29,16 @@ class Event:
 
     def __lt__(self, other):
         # For priority queue, events with earlier time come first
-        return self.time < other.time
+        return self.event_time < other.event_time
 
     def __repr__(self):
-        return (
-            f"Event(time={self.time}, type={self.type}, src={self.src}, dst={self.dst})"
-        )
+        return f"Event(time={self.event_time}, type={self.event_type}, src={self.src}, dst={self.dst})"
 
 
 class EventQueue:
     def __init__(self, events: List[Event]):
-        heapq.heapify(events)
         self.events = events
+        heapq.heapify(self.events)
 
     def push(self, new_event):
         heapq.heappush(self.events, new_event)
