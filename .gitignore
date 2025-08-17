@@ -12,3 +12,6 @@
 
 # Venv (should named aoi_venv)
 aoi_venv/
+
+# Miscellaneous testing
+test.*
