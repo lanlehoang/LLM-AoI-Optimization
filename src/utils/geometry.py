@@ -28,7 +28,7 @@ def convert_cartesian_to_polar(cartesian_coords: np.ndarray, radius: float):
     return np.array([theta, phi]).T
 
 
-def find_neighbours(cur_idx, cur_pos, dst_pos, satellite_positions):
+def find_neighbours(cur_idx, dst_pos, satellite_positions):
     """
     Find all neighbours of the current satellite that satisfy the following conditions:
     - Within the communication range: The distance to the neighbour is less than D_MAX.
@@ -37,6 +37,7 @@ def find_neighbours(cur_idx, cur_pos, dst_pos, satellite_positions):
     Returns N_NEIGHBOURS nearest neighbours.
     """
     # Exclude the current satellite itself
+    cur_pos = satellite_positions[cur_idx]  # Get the current coordinates first
     satellite_positions = np.delete(satellite_positions, cur_idx, axis=0)
 
     # Calculate distances to all other satellites

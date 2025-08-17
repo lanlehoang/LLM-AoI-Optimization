@@ -21,12 +21,17 @@ class SatelliteEnv(Env):
         self.system_config = get_system_config()
         self.n_satellites = self.system_config["n_satellites"]
         self.radius = (
-            self.system_config["physics"]["r_earth"] + self.system_config["satellite"]["height"]
+            self.system_config["physics"]["r_earth"]
+            + self.system_config["satellite"]["height"]
         )  # Radius of the satellites' orbit
 
         # Initialize satellite positions
-        satellite_positions = generate_satellite_positions(self.n_satellites, self.radius)
-        self.satellite_positions = satellite_positions  # Keep persistent for neighbour calculations
+        satellite_positions = generate_satellite_positions(
+            self.n_satellites, self.radius
+        )
+        self.satellite_positions = (
+            satellite_positions  # Keep persistent for neighbour calculations
+        )
 
         # Choose start and end satellites
         start, end = choose_start_end(satellite_positions)
@@ -41,12 +46,14 @@ class SatelliteEnv(Env):
         )
         # Scale processing rates for start satellite to intentionally create congestion in the network,
         # which forces the agent to learn dynamic routing strategies
-        satellite_processing_rates[start] *= self.system_config["satellite"]["mu"]["start_scale"]
+        scale = self.system_config["satellite"]["mu"]["start_scale"]
+        satellite_processing_rates[start] *= scale
 
         # Create satellite objects
         self.satellites = [
             Satellite(
-                position=satellite_positions[i], processing_rate=satellite_processing_rates[i]
+                position=satellite_positions[i],
+                processing_rate=satellite_processing_rates[i],
             )
             for i in range(self.n_satellites)
         ]
@@ -69,8 +76,34 @@ class SatelliteEnv(Env):
         self.buffer = ExperienceBuffer()
 
         # State and action spaces
-        # self.action_space = None  # To be decided
+        self.action_space = Discrete(self.system_config["n_neighbours"])
         self.state = None  # To be decided
+
+    def _get_state(self, cur_satellite):
+        """
+        The state at each step includes:
+        - The current satellite and the destination positions
+        - State of each neighbour, including its position, processing rate, and queue length
+        """
+        # Current and destination positions
+        cur_pos = self.satellite_positions[cur_satellite]
+        dst_pos = self.satellite_positions[self.end]
+
+        # Find all neighbours
+        neighbour_indices = find_neighbours(
+            cur_idx=cur_satellite,
+            dst_pos=dst_pos,
+            satellite_positions=self.satellite_positions,
+        )
+        neighbours = [self.satellites[i] for i in neighbour_indices]
+        neighbour_states = np.array([])
+        for sat in neighbours:
+            neighbour_states = np.hstack(
+                [neighbour_states, sat.position, sat.processing_rate, sat.queue_length]
+            )
+
+        # Concatenate everything and flatten into an 1-d array
+        return np.hstack([cur_pos, dst_pos, *neighbour_states])
 
     def reset(self, *, seed=None, options=None):
         """
