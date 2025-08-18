@@ -63,6 +63,8 @@ class SatelliteEnv(Env):
         packages = generate_all_packages(mu, simulation_time)
 
         self.packages = [Package(pkg_id, gen_time) for pkg_id, gen_time in packages]
+        self.done_packages = [False] * len(self.packages)  # Track completion status
+
         self.event_queue = EventQueue(
             [
                 Event(
@@ -104,6 +106,8 @@ class SatelliteEnv(Env):
         packages = generate_all_packages(mu, simulation_time)
 
         self.packages = [Package(pkg_id, gen_time) for pkg_id, gen_time in packages]
+        self.done_packages = [False] * len(self.packages)  # Track completion status
+
         self.event_queue = EventQueue(
             [
                 Event(
@@ -118,6 +122,9 @@ class SatelliteEnv(Env):
         self.satellites[self.start].set_queue_length(
             len(self.packages)
         )  # Set initial queue length for start satellite
+
+        # Initialize the buffer for storing experiences
+        self.buffer = ExperienceBuffer()
 
         # Initialize state (customize as needed)
         self.state = self.get_state(self.start)
@@ -176,7 +183,7 @@ class SatelliteEnv(Env):
             sat: Satellite = self.satellites[dst]
             start_time = max(
                 sat.busy_time, arrival_time
-            )  # Start processing at arrival, or when the satellite is free
+            )  # Start processing when the package arrives and the satellite is ready
             processing_time = generate_processing_time(mu=sat.processing_rate)
             sat.enqueue_package(processing_time=processing_time)
             new_event = Event(
@@ -192,11 +199,51 @@ class SatelliteEnv(Env):
         self.buffer.update_experience(package_id=package_id, new_state=new_state)
         # --- TO BE CONTINUED ---
 
-    def step(self, action):
+    def step(self, action, event: Event):
         """
         After each PROCESS event, take an action of transferring a package to another satellite.
         Note that the state right after the action IS NOT s'.
         By definition, s' should be the state at which we are ready to take the next action.
         Thus, we need to wait for the next PROCESS event of the SAME package to update the state.
         """
-        return None, 0.0, False, False, {}  # Replace with actual step logic
+        # Unpack event attributes
+        package_id = event.package_id
+        event_time = event.event_time
+        src = event.src
+
+        # Find the list of neighbours for the current satellite
+        neighbours = find_neighbours(
+            cur_idx=src,
+            dst_pos=self.satellite_positions[self.end],
+            satellite_positions=self.satellite_positions,
+        )
+
+        dst = neighbours[
+            action
+        ]  # Get the destination satellite index based on the action
+
+        # Push the transfer event into the event queue
+        new_event = Event(
+            package_id=package_id,
+            event_time=event_time,
+            event_type=EventType.TRANSFER.value,
+            src=src,
+            dst=dst,
+        )
+        self.event_queue.push(new_event)
+
+        # Update done status
+        if dst == self.end:
+            self.done_packages[package_id] = True
+
+        done = all(self.done_packages)  # Check if all packages are done
+
+        # Calculate the average AoI once done
+        info = {}
+        if done:
+            avg_aoi = np.mean(
+                [pkg.end_time - pkg.generation_time for pkg in self.packages]
+            )
+            info["average_aoi"] = avg_aoi
+
+        return None, 0.0, done, info  # Replace with actual step logic
