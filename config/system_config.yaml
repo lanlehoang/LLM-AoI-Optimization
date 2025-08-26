@@ -14,3 +14,7 @@ physics:
   r_earth: 6400 # km
   c: 300000 # km/s
   simulation_time: 10 # seconds
+
+baseline_reward:
+  alpha: 0.5
+  arrival_bonus: 1

@@ -2,30 +2,15 @@
 Define classes to be used in the env.py file
 """
 
-from enum import Enum
 import heapq  # Used for event priority queue
 from typing import List
 
 
-class EventType(Enum):
-    """
-    Enum for different types of events in the satellite environment.
-    Types of events:
-    - PROCESS: A package is processed by satellite i at time t
-    - TRANSFER: A package is transferred from satellite i to j at time t
-    """
-
-    PROCESS = "process"
-    TRANSFER = "transfer"
-
-
 class Event:
-    def __init__(self, package_id, event_time, event_type, src, dst=None):
+    def __init__(self, package_id, event_time, src):
         self.package_id = package_id
         self.event_time = event_time
-        self.event_type = event_type
         self.src = src
-        self.dst = dst  # Destination is None for PROCESS events
 
     def __lt__(self, other):
         # For priority queue, events with earlier time come first
@@ -88,8 +73,7 @@ class Satellite:
 
 
 class Package:
-    def __init__(self, package_id, generation_time):
-        self.package_id = package_id
+    def __init__(self, generation_time):
         self.generation_time = generation_time
         self.end_time = None  # To be set when processing is complete
 
