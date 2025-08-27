@@ -93,8 +93,7 @@ class SatelliteEnv:
         simulation_time = self.system_config["simulation_time"]
         packages = generate_all_packages(mu, simulation_time)
 
-        self.packages = [Package(pkg_id, gen_time) for pkg_id, gen_time in packages]
-        self.done_packages = [False] * len(self.packages)  # Track completion status
+        self.packages = [Package(gen_time) for _, gen_time in packages]
 
         self.event_queue = EventQueue(
             [
@@ -135,15 +134,12 @@ class SatelliteEnv:
         # Concatenate everything and flatten into an 1-d array
         return np.hstack([cur_pos, dst_pos, neighbour_states])
 
-    def _get_reward(self):
-        pass
-
     def step(self, action, event: Event):
         """
-        After each PROCESS event, take an action of transferring a package to another satellite.
+        After each event, take an action of transferring a package to another satellite.
         Note that the state right after the action IS NOT s'.
         By definition, s' should be the state at which we are ready to take the next action.
-        Thus, we need to wait for the next PROCESS event of the SAME package to update the state.
+        Thus, we need to wait for the next event of the SAME package to update the state.
         """
         # Unpack event attributes
         package_id = event.package_id
@@ -208,7 +204,7 @@ class SatelliteEnv:
             },
         )
 
-        done = not bool(self.event_queue)  # Check if all events are done
+        done = len(self.event_queue.events) == 0  # Check if all events are done
         # Calculate the average AoI once done
         info = {}
         if done:

@@ -59,9 +59,10 @@ class Satellite:
 
     def reset_queue(self):
         """
-        Reset the satellite's queue length to zero.
+        Reset the satellite's queue length and busy time to zero.
         """
         self.queue_length = 0
+        self.busy_time = 0
 
     def set_queue_length(self, length):
         """
