@@ -199,6 +199,15 @@ class SatelliteEnv:
             arrival_bonus = self.system_config["baseline_reward"]["arrival_bonus"]
             reward = -reward_time + arrival_bonus
 
+        # Add the experience to the buffer
+        self.buffer.add_experience(
+            package_id,
+            experience={
+                "action": action,
+                "reward": reward,
+            },
+        )
+
         done = not bool(self.event_queue)  # Check if all events are done
         # Calculate the average AoI once done
         info = {}

@@ -3,7 +3,8 @@ Define classes to be used in the env.py file
 """
 
 import heapq  # Used for event priority queue
-from typing import List
+from typing import List, Optional, TypedDict
+import numpy as np
 
 
 class Event:
@@ -84,6 +85,18 @@ class Package:
         self.end_time = end_time
 
 
+class Experience(TypedDict):
+    """
+    A single experience tuple (s, a, r, s').
+    Fields can be None if not yet available.
+    """
+
+    state: Optional[np.ndarray]
+    action: Optional[int]
+    reward: Optional[float]
+    next_state: Optional[np.ndarray]
+
+
 class ExperienceBuffer:
     """
     Store incomplete experiences e = (s, a, r, s').
@@ -94,19 +107,21 @@ class ExperienceBuffer:
     def __init__(self):
         self.buffer = {}
 
-    def add_experience(self, package_id, experience):
+    def add_experience(self, package_id, experience: Experience):
         """
         Add an experience to the buffer.
         """
         self.buffer[package_id] = experience
 
-    def update_experience(self, package_id, new_state):
+    def update_experience(self, package_id, new_experience: Experience):
         """
         Update the state of an experience in the buffer based on package_id.
         """
         if package_id in self.buffer:
             experience = self.buffer[package_id]
-            experience[-1] = new_state
+            for key in new_experience:
+                if new_experience[key] is not None:
+                    experience[key] = new_experience[key]
         else:
             raise KeyError(f"Package ID {package_id} not found in buffer.")
 
