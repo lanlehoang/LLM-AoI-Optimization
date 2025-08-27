@@ -15,3 +15,6 @@ aoi_venv/
 
 # Miscellaneous testing
 test.*
+
+# Logging
+logs/
