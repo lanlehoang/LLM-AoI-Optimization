@@ -126,15 +126,21 @@ class SatelliteEnv:
             satellite_positions=self.satellite_positions,
         )
         neighbours = [self.satellites[i] for i in neighbour_indices]
+        n_neighbours = len(neighbours)
+
+        # State of each neighbour
         neighbour_states = np.array([])
         for sat in neighbours:
             rel_sat_pos = dst_pos - sat.position
             neighbour_states = np.hstack(
                 [neighbour_states, rel_sat_pos, sat.processing_rate, sat.queue_length]
             )
+        n_neighbours_max = self.system_config["satellite"]["n_neighbours"]
+        paddings = np.array([np.nan] * 5 * (n_neighbours_max - n_neighbours))
+        neighbour_states = np.hstack([neighbour_states, paddings])
 
         # Concatenate everything and flatten into an 1-d array
-        return np.hstack([rel_pos, neighbour_states])
+        return n_neighbours, np.hstack([rel_pos, neighbour_states])
 
     def step(self, action, event: Event):
         """
