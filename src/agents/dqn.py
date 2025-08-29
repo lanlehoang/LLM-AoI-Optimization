@@ -3,6 +3,8 @@ import torch.nn as nn
 import torch.nn.functional as f
 import numpy as np
 
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 
 class ReplayBuffer:
     def __init__(self, max_size, input_shape, n_actions, discrete=True):
@@ -55,10 +57,6 @@ class QNetwork(nn.Module):
         - Relative position of neighbour to destination satellite (3,)
         - Processing rate (1,)
         - Queue length (1,)
-
-    Input to the Deep Set:
-    - Current satellite relative position to destination (3,) (as contextual input)
-    - Each neighbour is represented as a vector of shape (5,)
     """
 
     def __init__(self, lr, input_dims, fc1_dims, fc2_dims, n_actions):
@@ -66,3 +64,15 @@ class QNetwork(nn.Module):
 
     def forward(self, state):
         pass
+
+
+class DeepSetNetwork(nn.Module):
+    """
+    Deep Set Network for processing satellite and neighbour information.
+    Input to the Deep Set:
+    - Current satellite relative position to destination (3,) (as contextual input)
+    - Each neighbour is represented as a vector of shape (5,)
+    Output:
+    - Embedding vector of shape (fc2_dims,)
+    """
+    def __init__(self, input_dims, fc1_dims, fc2_dims):
