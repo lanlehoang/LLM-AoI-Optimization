@@ -117,6 +117,7 @@ class SatelliteEnv:
         # Current and destination positions
         cur_pos = self.satellite_positions[cur_satellite]
         dst_pos = self.satellite_positions[self.end]
+        rel_pos = dst_pos - cur_pos
 
         # Find all neighbours
         neighbour_indices = find_neighbours(
@@ -127,12 +128,13 @@ class SatelliteEnv:
         neighbours = [self.satellites[i] for i in neighbour_indices]
         neighbour_states = np.array([])
         for sat in neighbours:
+            rel_sat_pos = dst_pos - sat.position
             neighbour_states = np.hstack(
-                [neighbour_states, sat.position, sat.processing_rate, sat.queue_length]
+                [neighbour_states, rel_sat_pos, sat.processing_rate, sat.queue_length]
             )
 
         # Concatenate everything and flatten into an 1-d array
-        return np.hstack([cur_pos, dst_pos, neighbour_states])
+        return np.hstack([rel_pos, neighbour_states])
 
     def step(self, action, event: Event):
         """
