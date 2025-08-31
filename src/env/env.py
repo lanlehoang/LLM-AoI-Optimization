@@ -75,6 +75,13 @@ class SatelliteEnv:
         # Initialize the buffer for storing experiences
         self.buffer = ExperienceBuffer()
 
+        # State related variables (to be updated with get_state)
+        self.state = None
+        self.time = None
+        self.cur_package = None
+        self.cur_sat = None
+        self.neighbours = []
+
     def reset(self):
         """
         Empty satellite queues and reset packages.
@@ -108,20 +115,33 @@ class SatelliteEnv:
         # Initialize the buffer for storing experiences
         self.buffer = ExperienceBuffer()
 
-    def get_state(self, cur_satellite):
+        # State related variables (to be updated with handle_event)
+        self.state = None
+        self.time = None
+        self.cur_package = None
+        self.cur_sat = None
+        self.neighbours = []
+
+    def handle_event(self):
         """
         The state at each step includes:
         - The current satellite and the destination positions
         - State of each neighbour, including its position, processing rate, and queue length
         """
+        # Unpack event attributes
+        event = self.event_queue.pop()
+        package_id = event.package_id
+        event_time = event.event_time
+        src = event.src
+
         # Current and destination positions
-        cur_pos = self.satellite_positions[cur_satellite]
+        cur_pos = self.satellite_positions[src]
         dst_pos = self.satellite_positions[self.end]
         rel_pos = dst_pos - cur_pos
 
         # Find all neighbours
         neighbour_indices = find_neighbours(
-            cur_idx=cur_satellite,
+            cur_idx=src,
             dst_pos=dst_pos,
             satellite_positions=self.satellite_positions,
         )
@@ -136,42 +156,49 @@ class SatelliteEnv:
                 [neighbour_states, rel_sat_pos, sat.processing_rate, sat.queue_length]
             )
         n_neighbours_max = self.system_config["satellite"]["n_neighbours"]
-        paddings = np.array([np.nan] * 5 * (n_neighbours_max - n_neighbours))
+        paddings = np.zeros(5 * (n_neighbours_max - n_neighbours))
         neighbour_states = np.hstack([neighbour_states, paddings])
 
         # Concatenate everything and flatten into an 1-d array
-        return n_neighbours, np.hstack([rel_pos, neighbour_states])
+        self.state = np.hstack([rel_pos, neighbour_states])
+        self.time = event_time
+        self.cur_package = package_id
+        self.cur_sat = src
+        self.neighbours = neighbour_indices
 
-    def step(self, action, event: Event):
+        # Update the buffer
+        experience = None
+        if package_id in self.buffer.buffer:
+            self.buffer.update_experience(
+                package_id=package_id, new_experience={"next_state": self.state}
+            )
+            experience = self.buffer.pop_experience(package_id)
+
+        # Overwrite the experience in the buffer
+        self.buffer.add_experience(
+            package_id=package_id, experience={"state": self.state}
+        )
+        return experience
+
+    def step(self, action):
         """
         After each event, take an action of transferring a package to another satellite.
         Note that the state right after the action IS NOT s'.
         By definition, s' should be the state at which we are ready to take the next action.
         Thus, we need to wait for the next event of the SAME package to update the state.
         """
-        # Unpack event attributes
-        package_id = event.package_id
-        event_time = event.event_time
-        src = event.src
-
-        # Find the list of neighbours for the current satellite
-        neighbours = find_neighbours(
-            cur_idx=src,
-            dst_pos=self.satellite_positions[self.end],
-            satellite_positions=self.satellite_positions,
-        )
         # Get the destination satellite index based on the action
-        dst = neighbours[action]
+        dst = self.neighbours[action]
 
         # Dequeue the package from the source satellite
-        self.satellites[src].dequeue_package()
+        self.satellites[self.cur_sat].dequeue_package()
 
         # Calculate transmission time
         c = self.system_config["physics"]["c"]
         dist = np.linalg.norm(
-            self.satellite_positions[src] - self.satellite_positions[dst]
+            self.satellite_positions[self.cur_sat] - self.satellite_positions[dst]
         )
-        arrival_time = event_time + dist / c
+        arrival_time = self.time + dist / c
 
         # Push new event into the event queue if the package hasn't reached the end
         if dst != self.end:
@@ -183,13 +210,13 @@ class SatelliteEnv:
             processing_time = generate_processing_time(mu=sat.processing_rate)
             sat.enqueue_package(processing_time=processing_time)
             new_event = Event(
-                package_id=package_id,
+                package_id=self.cur_package,
                 event_time=start_time + processing_time,
                 src=dst,
             )
             self.event_queue.push(new_event)
             # Calculate reward
-            reward_time = start_time + processing_time - event_time
+            reward_time = start_time + processing_time - self.time
             reward_dist = compute_arc_length(
                 self.satellite_positions[dst], self.satellite_positions[self.end]
             )
@@ -197,20 +224,11 @@ class SatelliteEnv:
             reward = -(reward_time + alpha * reward_dist)
         else:
             # Record the end time otherwise
-            self.packages[package_id].record_end_time(arrival_time)
+            self.packages[self.cur_package].record_end_time(arrival_time)
             # Calculate reward time
-            reward_time = arrival_time - event_time
+            reward_time = arrival_time - self.time
             arrival_bonus = self.system_config["baseline_reward"]["arrival_bonus"]
             reward = -reward_time + arrival_bonus
-
-        # Add the experience to the buffer
-        self.buffer.add_experience(
-            package_id,
-            experience={
-                "action": action,
-                "reward": reward,
-            },
-        )
 
         done = len(self.event_queue.events) == 0  # Check if all events are done
         # Calculate the average AoI once done
@@ -220,5 +238,11 @@ class SatelliteEnv:
                 [pkg.end_time - pkg.generation_time for pkg in self.packages]
             )
             info["average_aoi"] = avg_aoi
+
+        # Update the experience in the buffer with action, reward, and done
+        self.buffer.update_experience(
+            self.cur_package,
+            experience={"action": action, "reward": reward, "done": done},
+        )
 
         return reward, done, info

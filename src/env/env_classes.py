@@ -17,9 +17,6 @@ class Event:
         # For priority queue, events with earlier time come first
         return self.event_time < other.event_time
 
-    def __repr__(self):
-        return f"Event(time={self.event_time}, type={self.event_type}, src={self.src}, dst={self.dst})"
-
 
 class EventQueue:
     def __init__(self, events: List[Event]):
@@ -88,7 +85,7 @@ class Package:
 
 class Experience(TypedDict):
     """
-    A single experience tuple (s, a, r, s').
+    A single experience tuple (s, a, r, s', done).
     Fields can be None if not yet available.
     """
 
@@ -96,6 +93,7 @@ class Experience(TypedDict):
     action: Optional[int]
     reward: Optional[float]
     next_state: Optional[np.ndarray]
+    done: Optional[bool]
 
 
 class ExperienceBuffer:
