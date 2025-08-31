@@ -1,0 +1,7 @@
+dqn:
+  deepset:
+    fc1_dims: 64
+    fc2_dims: 128
+    embedding_dims: 128
+  final_fc_dims: 32
+  dropout: 0.1
