@@ -9,10 +9,17 @@ ENV_DIR = pathlib.Path(__file__).parent.parent.parent / ".env"
 
 class ConfigPaths(Enum):
     SYSTEM_CONFIG = CONFIG_DIR / "system_config.yaml"
+    AGENT_CONFIG = CONFIG_DIR / "agent_config.yaml"
 
 
 def get_system_config():
     with open(ConfigPaths.SYSTEM_CONFIG.value, "r") as file:
+        config = yaml.safe_load(file)
+    return config
+
+
+def get_agent_config():
+    with open(ConfigPaths.AGENT_CONFIG.value, "r") as file:
         config = yaml.safe_load(file)
     return config
 
