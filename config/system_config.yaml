@@ -5,16 +5,18 @@ satellite:
   d_max: 2500 # km
   n_neighbours: 5 # Maximum number of nearest neighbours to consider per satellite
   # Random mu for different Poisson processes
+  queue_limit: 5  # Maximum queue capacity per satellite
   mu:
     lower: 100
-    upper: 200
-    start_scale: 5.0  # Make S0 generate more packages to simulate congestion. Should be > 1.0
+    upper: 150
+    start_scale: 10.0  # Make S0 generate more packages to simulate congestion. Should be > 1.0
 
 physics:
   r_earth: 6400 # km
   c: 300000 # km/s
-  simulation_time: 10 # seconds
+  simulation_time: 0.01 # seconds
 
 baseline_reward:
   alpha: 0.1
   arrival_bonus: 1
+  drop_penalty: 1

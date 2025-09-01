@@ -2,10 +2,10 @@ import numpy as np
 from src.utils.generators import *
 from src.utils.geometry import *
 from src.utils.get_config import get_system_config
-from env_classes import *
+from src.env.env_classes import *
+from src.utils.logger import get_logger
 
-# Set random seed for reproducibility
-np.random.seed(RANDOM_SEED)
+logger = get_logger(__name__)
 
 
 class SatelliteEnv:
@@ -16,7 +16,7 @@ class SatelliteEnv:
     def __init__(self):
         super().__init__()
         self.system_config = get_system_config()
-        self.n_satellites = self.system_config["n_satellites"]
+        self.n_satellites = self.system_config["satellite"]["n_satellites"]
         self.radius = (
             self.system_config["physics"]["r_earth"]
             + self.system_config["satellite"]["height"]
@@ -36,8 +36,8 @@ class SatelliteEnv:
         self.end = end
 
         # Initialize satellite processing rates
-        mu_lower = self.system_config["satellite"]["processing_rate"]["lower"]
-        mu_upper = self.system_config["satellite"]["processing_rate"]["upper"]
+        mu_lower = self.system_config["satellite"]["mu"]["lower"]
+        mu_upper = self.system_config["satellite"]["mu"]["upper"]
         satellite_processing_rates = generate_satellite_processing_rates(
             self.n_satellites, lower=mu_lower, upper=mu_upper
         )
@@ -57,30 +57,10 @@ class SatelliteEnv:
 
         # Generate all packages at the start satellite
         mu = self.satellites[self.start].processing_rate
-        simulation_time = self.system_config["simulation_time"]
-        packages = generate_all_packages(mu, simulation_time)
-
-        self.packages = [Package(gen_time) for _, gen_time in packages]
-
-        self.event_queue = EventQueue(
-            [
-                Event(pkg_id, generation_time, self.start)
-                for pkg_id, generation_time in packages
-            ]
-        )
-        self.satellites[self.start].set_queue_length(
-            len(self.packages)
-        )  # Set initial queue length for start satellite
-
-        # Initialize the buffer for storing experiences
-        self.buffer = ExperienceBuffer()
-
-        # State related variables (to be updated with get_state)
-        self.state = None
-        self.time = None
-        self.cur_package = None
-        self.cur_sat = None
-        self.neighbours = []
+        simulation_time = self.system_config["physics"]["simulation_time"]
+        # Generate all packages at the start satellite
+        self.initial_packages = generate_all_packages(mu, simulation_time)
+        logger.info(f"Number of packages generated: {len(self.initial_packages)}")
 
     def reset(self):
         """
@@ -95,17 +75,13 @@ class SatelliteEnv:
         for satellite in self.satellites:
             satellite.reset_queue()
 
-        # Generate all packages at the start satellite
-        mu = self.satellites[self.start].processing_rate
-        simulation_time = self.system_config["simulation_time"]
-        packages = generate_all_packages(mu, simulation_time)
-
-        self.packages = [Package(gen_time) for _, gen_time in packages]
+        # Reset packages and event queue
+        self.packages = [Package(gen_time) for _, gen_time in self.initial_packages]
 
         self.event_queue = EventQueue(
             [
                 Event(pkg_id, generation_time, self.start)
-                for pkg_id, generation_time in packages
+                for pkg_id, generation_time in self.initial_packages
             ]
         )
         self.satellites[self.start].set_queue_length(
@@ -242,7 +218,7 @@ class SatelliteEnv:
         # Update the experience in the buffer with action, reward, and done
         self.buffer.update_experience(
             self.cur_package,
-            experience={"action": action, "reward": reward, "done": done},
+            new_experience={"action": action, "reward": reward, "done": done},
         )
 
-        return reward, done, info
+        return done, info

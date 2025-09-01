@@ -3,6 +3,7 @@
 
 # Cache files
 .cache/
+**/__pycache__
 
 # Eggs
 *.egg*

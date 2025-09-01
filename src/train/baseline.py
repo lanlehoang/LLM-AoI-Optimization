@@ -4,7 +4,8 @@ from src.utils.get_config import get_agent_config, get_system_config
 from src.utils.generators import RANDOM_SEED
 from src.agents.dqn import Agent
 import numpy as np
-import pandas as pd
+
+# import pandas as pd
 
 logger = get_logger(__name__)
 system_config = get_system_config()
@@ -12,14 +13,16 @@ agent_config = get_agent_config()
 
 
 def main():
-    logger.info("Initializing the environment with random seed {RANDOM_SEED}")
+    logger.info(f"Initializing the environment with random seed {RANDOM_SEED}")
     np.random.seed(RANDOM_SEED)
     env = SatelliteEnv()
 
     logger.info("Initializing the agent")
-    agent = Agent()
+    agent = Agent(
+        input_dims=28
+    )  # TODO: Convert input_dims to variable instead of hardcode
     steps = 0  # Count steps to decay epsilon
-    decay_interval = agent_config["epsilon"]["decay_interval"]
+    decay_interval = agent_config["train"]["epsilon"]["decay_interval"]
 
     aois = []  # AoI
 
@@ -38,8 +41,8 @@ def main():
                 done = experience["done"]
                 agent.remember(state, action, reward, next_state, done)
                 agent.learn()
-            action = agent.choose_action(env.state, len(env.neighbours))
-            info = env.step(action)
+            action = agent.choose_action(env.state)
+            done, info = env.step(action)
 
             # Epsilon decay
             steps = (steps + 1) % decay_interval
@@ -49,10 +52,12 @@ def main():
 
         logger.info(f"Average AoI of episode {i + 1}: {info['average_aoi']:.6f}")
         aois.append(info["average_aoi"])
+        logger.info(f"Episode {i + 1} done. Average AoI: {info['average_aoi']:.6f}")
 
+    logger.info(f"AoI of each episode: {aois}")
     logger.info("Saving the results")
-    df = pd.DataFrame({"AoI": aois})
-    df.to_csv("results.csv", index=False)
+    # df = pd.DataFrame({"AoI": aois})
+    # df.to_csv("results.csv", index=False)
 
 
 if __name__ == "__main__":

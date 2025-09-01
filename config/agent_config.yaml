@@ -1,13 +1,22 @@
+# dqn:
+#   deepset:
+#     fc1_dims: 64
+#     fc2_dims: 128
+#     embedding_dims: 128
+#   final_fc_dims: 32
+#   dropout: 0.1
+
+# Small numbers for pipeline test only
 dqn:
   deepset:
-    fc1_dims: 64
-    fc2_dims: 128
-    embedding_dims: 128
-  final_fc_dims: 32
+    fc1_dims: 4
+    fc2_dims: 8
+    embedding_dims: 16
+  final_fc_dims: 2
   dropout: 0.1
 
 train:
-  epochs: 100
+  epochs: 10
   lr: 0.0005
   batch_size: 32
   gamma: 0.99
@@ -15,4 +24,4 @@ train:
     init: 1.0
     min: 0.001
     decay: 0.995
-    decay_interval: 50  # Steps per epsilon decay
+    decay_interval: 10  # Steps per epsilon decay
