@@ -16,5 +16,5 @@ physics:
   simulation_time: 10 # seconds
 
 baseline_reward:
-  alpha: 0.5
+  alpha: 0.1
   arrival_bonus: 1
