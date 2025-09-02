@@ -31,9 +31,9 @@ class DeepSetNetwork(nn.Module):
         self.fc3 = nn.Linear(fc2_dims, output_dim)
 
     def forward(self, x):
-        x = f.relu(self.ln1(self.fc1(x)))
+        x = f.leaky_relu(self.ln1(self.fc1(x)))
         x = self.dropout1(x)
-        x = f.relu(self.ln2(self.fc2(x)))
+        x = f.leaky_relu(self.ln2(self.fc2(x)))
         x = self.dropout2(x)
         x = self.fc3(x)
         return x
@@ -70,7 +70,7 @@ class QNetwork(nn.Module):
         )
         self.fc = nn.Sequential(
             nn.Linear(2 * embed_dims + 3, final_fc_dims),
-            nn.ReLU(),
+            nn.LeakyReLU(),
             nn.Dropout(dropout),
             nn.Linear(final_fc_dims, 1),
         )
@@ -199,7 +199,7 @@ class ReplayBuffer(object):
 
 
 class Agent:
-    def __init__(self, input_dims, mem_size=1000):
+    def __init__(self, input_dims, mem_size=1500):
         n_actions = system_config["satellite"]["n_neighbours"]
         self.action_space = np.arange(n_actions)
         self.gamma = agent_config["train"]["gamma"]

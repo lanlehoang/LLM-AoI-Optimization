@@ -5,13 +5,20 @@ Define classes to be used in the env.py file
 import heapq  # Used for event priority queue
 from typing import List, Optional, TypedDict
 import numpy as np
+from enum import Enum
+
+
+class EventType(Enum):
+    ARRIVAL = "arrival"
+    PROCESSED = "processed"
 
 
 class Event:
-    def __init__(self, package_id, event_time, src):
+    def __init__(self, package_id, event_time, event_type, sat):
         self.package_id = package_id
         self.event_time = event_time
-        self.src = src
+        self.event_type = event_type
+        self.sat = sat
 
     def __lt__(self, other):
         # For priority queue, events with earlier time come first
@@ -37,13 +44,13 @@ class Satellite:
         self.queue_length = queue_length
         self.busy_time = 0  # This satellite will be busy until this time
 
-    def enqueue_package(self, processing_time):
+    def enqueue_package(self, start_time, processing_time):
         """
         Increment the queue length of the satellite.
         Add processing_time to busy time
         """
         self.queue_length += 1
-        self.busy_time += processing_time
+        self.busy_time = start_time + processing_time
 
     def dequeue_package(self):
         """
@@ -75,12 +82,26 @@ class Package:
     def __init__(self, generation_time):
         self.generation_time = generation_time
         self.end_time = None  # To be set when processing is complete
+        self.sent_time = None  # To be set when package is sent
+        self.dropped = False
 
     def record_end_time(self, end_time):
         """
         Record the end time of the package processing.
         """
         self.end_time = end_time
+
+    def record_sent_time(self, sent_time):
+        """
+        Record the sent time of the package.
+        """
+        self.sent_time = sent_time
+
+    def drop(self):
+        """
+        Mark the package as dropped.
+        """
+        self.dropped = True
 
 
 class Experience(TypedDict):
@@ -105,6 +126,7 @@ class ExperienceBuffer:
 
     def __init__(self):
         self.buffer = {}
+        self.complete_experiences = []
 
     def add_experience(self, package_id, experience: Experience):
         """
@@ -124,11 +146,17 @@ class ExperienceBuffer:
         else:
             raise KeyError(f"Package ID {package_id} not found in buffer.")
 
-    def pop_experience(self, package_id):
+    def complete_experience(self, package_id):
         """
-        Remove an experience from the buffer based on package_id.
+        Remove a complete experience from the buffer based on package_id.
+        An experience is said to be complete if all of its fields are not None.
         """
         if package_id in self.buffer:
-            return self.buffer.pop(package_id)
+            self.complete_experiences.append(self.buffer.pop(package_id))
         else:
             raise KeyError(f"Package ID {package_id} not found in buffer.")
+
+    def get_all_complete_experiences(self):
+        experiences = self.complete_experiences
+        self.complete_experiences = []
+        return experiences

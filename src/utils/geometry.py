@@ -49,14 +49,19 @@ def find_neighbours(cur_idx, dst_pos, satellite_positions):
 
     # Forward path condition
     dst_vector = dst_pos - cur_pos
-    forward = np.dot(neighbour_vectors, dst_vector) > 0
+    angle_limit = config["satellite"]["angle_limit"] * np.pi / 180.0
+    forward = np.dot(neighbour_vectors, dst_vector) > np.cos(angle_limit)
 
     # Combine conditions
     neighbours = np.where(within_range & forward)[0]
 
     # Sort neighbours by distance to the current satellite
     sorted_indices = np.argsort(distances[neighbours])
-    return neighbours[sorted_indices][:N_NEIGHBOURS].tolist() if len(neighbours) > 0 else []
+    return (
+        neighbours[sorted_indices][:N_NEIGHBOURS].tolist()
+        if len(neighbours) > 0
+        else []
+    )
 
 
 def compute_arc_length(cur_pos, dst_pos):

@@ -6,6 +6,7 @@ from src.env.env_classes import *
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
+system_config = get_system_config()
 
 
 class SatelliteEnv:
@@ -15,11 +16,9 @@ class SatelliteEnv:
 
     def __init__(self):
         super().__init__()
-        self.system_config = get_system_config()
-        self.n_satellites = self.system_config["satellite"]["n_satellites"]
+        self.n_satellites = system_config["satellite"]["n_satellites"]
         self.radius = (
-            self.system_config["physics"]["r_earth"]
-            + self.system_config["satellite"]["height"]
+            system_config["physics"]["r_earth"] + system_config["satellite"]["height"]
         )  # Radius of the satellites' orbit
 
         # Initialize satellite positions
@@ -36,14 +35,14 @@ class SatelliteEnv:
         self.end = end
 
         # Initialize satellite processing rates
-        mu_lower = self.system_config["satellite"]["mu"]["lower"]
-        mu_upper = self.system_config["satellite"]["mu"]["upper"]
+        mu_lower = system_config["satellite"]["mu"]["lower"]
+        mu_upper = system_config["satellite"]["mu"]["upper"]
         satellite_processing_rates = generate_satellite_processing_rates(
             self.n_satellites, lower=mu_lower, upper=mu_upper
         )
         # Scale processing rates for start satellite to intentionally create congestion in the network,
         # which forces the agent to learn dynamic routing strategies
-        scale = self.system_config["satellite"]["mu"]["start_scale"]
+        scale = system_config["satellite"]["mu"]["start_scale"]
         satellite_processing_rates[start] *= scale
 
         # Create satellite objects
@@ -57,7 +56,7 @@ class SatelliteEnv:
 
         # Generate all packages at the start satellite
         mu = self.satellites[self.start].processing_rate
-        simulation_time = self.system_config["physics"]["simulation_time"]
+        simulation_time = system_config["physics"]["simulation_time"]
         # Generate all packages at the start satellite
         self.initial_packages = generate_all_packages(mu, simulation_time)
         logger.info(f"Number of packages generated: {len(self.initial_packages)}")
@@ -80,7 +79,7 @@ class SatelliteEnv:
 
         self.event_queue = EventQueue(
             [
-                Event(pkg_id, generation_time, self.start)
+                Event(pkg_id, generation_time, EventType.PROCESSED.value, self.start)
                 for pkg_id, generation_time in self.initial_packages
             ]
         )
@@ -91,14 +90,14 @@ class SatelliteEnv:
         # Initialize the buffer for storing experiences
         self.buffer = ExperienceBuffer()
 
-        # State related variables (to be updated with handle_event)
+        # State related variables (to be updated with handle_events)
         self.state = None
         self.time = None
         self.cur_package = None
         self.cur_sat = None
         self.neighbours = []
 
-    def handle_event(self):
+    def handle_events(self):
         """
         The state at each step includes:
         - The current satellite and the destination positions
@@ -106,9 +105,66 @@ class SatelliteEnv:
         """
         # Unpack event attributes
         event = self.event_queue.pop()
+
+        # Handle ARRIVAL events
+        while event.event_type == EventType.ARRIVAL.value:
+            package_id = event.package_id
+            event_time = event.event_time
+            src = event.sat
+            # Start processing
+            # Check if the next satellite queue is full at arrival time
+            sat: Satellite = self.satellites[src]
+            if (
+                sat.busy_time > event_time
+                and sat.queue_length >= system_config["satellite"]["queue_limit"]
+            ):
+                self.packages[package_id].drop()
+                reward = -system_config["baseline_reward"]["drop_penalty"]
+                self.buffer.update_experience(
+                    package_id=package_id,
+                    new_experience={
+                        "reward": reward,
+                        "next_state": self.state,  # Doesn't matter as the package is done
+                        "done": True,  # Done package, not done episode
+                    },
+                )
+                logger.info(f"Packet ID {package_id} dropped.")
+                self.buffer.complete_experience(package_id=package_id)
+            else:
+                # Start processing when the package arrives and the satellite is ready
+                start_time = max(sat.busy_time, event_time)
+                processing_time = generate_processing_time(mu=sat.processing_rate)
+                sat.enqueue_package(
+                    start_time=start_time, processing_time=processing_time
+                )
+                new_event = Event(
+                    package_id=package_id,
+                    event_time=start_time + processing_time,
+                    event_type=EventType.PROCESSED.value,
+                    sat=src,
+                )
+                self.event_queue.push(new_event)
+                # Calculate reward
+                reward_time = (
+                    start_time + processing_time - self.packages[package_id].sent_time
+                )
+                reward_dist = compute_arc_length(
+                    self.satellite_positions[src], self.satellite_positions[self.end]
+                )
+                c = system_config["physics"]["c"]
+                alpha = system_config["baseline_reward"]["alpha"]
+                reward = -(reward_time + alpha * reward_dist / c)
+                self.buffer.update_experience(
+                    package_id=package_id,
+                    new_experience={"reward": reward, "done": False},
+                )
+            # Continue resolving ARRIVAL events
+            event = self.event_queue.pop()
+
+        # Handle a single PROCESSED event
         package_id = event.package_id
         event_time = event.event_time
-        src = event.src
+        src = event.sat
 
         # Current and destination positions
         cur_pos = self.satellite_positions[src]
@@ -131,37 +187,37 @@ class SatelliteEnv:
             neighbour_states = np.hstack(
                 [neighbour_states, rel_sat_pos, sat.processing_rate, sat.queue_length]
             )
-        n_neighbours_max = self.system_config["satellite"]["n_neighbours"]
+        n_neighbours_max = system_config["satellite"]["n_neighbours"]
         paddings = np.zeros(5 * (n_neighbours_max - n_neighbours))
         neighbour_states = np.hstack([neighbour_states, paddings])
 
         # Concatenate everything and flatten into an 1-d array
         self.state = np.hstack([rel_pos, neighbour_states])
+
+        # Other variable updates
         self.time = event_time
         self.cur_package = package_id
         self.cur_sat = src
         self.neighbours = neighbour_indices
 
         # Update the buffer
-        experience = None
         if package_id in self.buffer.buffer:
             self.buffer.update_experience(
                 package_id=package_id, new_experience={"next_state": self.state}
             )
-            experience = self.buffer.pop_experience(package_id)
+            self.buffer.complete_experience(package_id)
 
         # Overwrite the experience in the buffer
         self.buffer.add_experience(
             package_id=package_id, experience={"state": self.state}
         )
-        return experience
 
     def step(self, action):
         """
         After each event, take an action of transferring a package to another satellite.
         Note that the state right after the action IS NOT s'.
         By definition, s' should be the state at which we are ready to take the next action.
-        Thus, we need to wait for the next event of the SAME package to update the state.
+        Thus, we need to wait for the next PROCESS event of the SAME package to update the state.
         """
         # Get the destination satellite index based on the action
         dst = self.neighbours[action]
@@ -170,7 +226,7 @@ class SatelliteEnv:
         self.satellites[self.cur_sat].dequeue_package()
 
         # Calculate transmission time
-        c = self.system_config["physics"]["c"]
+        c = system_config["physics"]["c"]
         dist = np.linalg.norm(
             self.satellite_positions[self.cur_sat] - self.satellite_positions[dst]
         )
@@ -178,47 +234,58 @@ class SatelliteEnv:
 
         # Push new event into the event queue if the package hasn't reached the end
         if dst != self.end:
-            # Calculate processing time
-            sat: Satellite = self.satellites[dst]
-            start_time = max(
-                sat.busy_time, arrival_time
-            )  # Start processing when the package arrives and the satellite is ready
-            processing_time = generate_processing_time(mu=sat.processing_rate)
-            sat.enqueue_package(processing_time=processing_time)
-            new_event = Event(
+            self.packages[self.cur_package].record_sent_time(self.time)
+            self.buffer.update_experience(
+                self.cur_package,
+                new_experience={"action": action, "done": False},
+            )
+            # Push new ARRIVAL event
+            arrival_event = Event(
                 package_id=self.cur_package,
-                event_time=start_time + processing_time,
-                src=dst,
+                event_time=arrival_time,
+                event_type=EventType.ARRIVAL.value,
+                sat=dst,  # destination satellite
             )
-            self.event_queue.push(new_event)
-            # Calculate reward
-            reward_time = start_time + processing_time - self.time
-            reward_dist = compute_arc_length(
-                self.satellite_positions[dst], self.satellite_positions[self.end]
-            )
-            alpha = self.system_config["baseline_reward"]["alpha"]
-            reward = -(reward_time + alpha * reward_dist)
+            self.event_queue.push(arrival_event)
+            return False, {}
         else:
             # Record the end time otherwise
             self.packages[self.cur_package].record_end_time(arrival_time)
             # Calculate reward time
             reward_time = arrival_time - self.time
-            arrival_bonus = self.system_config["baseline_reward"]["arrival_bonus"]
+            arrival_bonus = system_config["baseline_reward"]["arrival_bonus"]
             reward = -reward_time + arrival_bonus
 
-        done = len(self.event_queue.events) == 0  # Check if all events are done
-        # Calculate the average AoI once done
-        info = {}
-        if done:
-            avg_aoi = np.mean(
-                [pkg.end_time - pkg.generation_time for pkg in self.packages]
+            # Update the experience in the buffer with action, reward, and done
+            self.buffer.update_experience(
+                self.cur_package,
+                new_experience={
+                    "action": action,
+                    "reward": reward,
+                    "next_state": self.state,  # Doesn't matter as the package is done
+                    "done": True,  # Done package, not done episode
+                },
             )
-            info["average_aoi"] = avg_aoi
+            logger.info(
+                f"Packet ID {self.cur_package} reached the destination. "
+                f"AoI: {arrival_time - self.packages[self.cur_package].generation_time:.6}"
+            )
+            self.buffer.complete_experience(package_id=self.cur_package)
 
-        # Update the experience in the buffer with action, reward, and done
-        self.buffer.update_experience(
-            self.cur_package,
-            new_experience={"action": action, "reward": reward, "done": done},
-        )
+            # Calculate the average AoI and package drop ratio once done
+            episode_done = len(self.event_queue.events) == 0
+            info = {}
+            if episode_done:
+                avg_aoi = np.mean(
+                    [
+                        pkg.end_time - pkg.generation_time
+                        for pkg in self.packages
+                        if not pkg.dropped
+                    ]
+                )
+                n_dropped = len([pkg for pkg in self.packages if pkg.dropped])
+                dropped_ratio = n_dropped / len(self.packages)
+                info["average_aoi"] = avg_aoi
+                info["dropped_ratio"] = dropped_ratio
 
-        return done, info
+            return episode_done, info

@@ -19,42 +19,48 @@ def main():
 
     logger.info("Initializing the agent")
     agent = Agent(
-        input_dims=28
+        input_dims=53
     )  # TODO: Convert input_dims to variable instead of hardcode
     steps = 0  # Count steps to decay epsilon
     decay_interval = agent_config["train"]["epsilon"]["decay_interval"]
 
     aois = []  # AoI
+    dropped_ratios = []
 
     logger.info("Training the agent")
     for i in range(agent_config["train"]["epochs"]):
+        logger.info(f"\n\n---Episode {i + 1} begins---")
+        logger.info(f"Epsilon: {agent.epsilon:.3}")
         env.reset()
         done = False
         while not done:
-            experience = env.handle_event()
-            # Push previously updated experience into ReplayBuffer
-            if experience:
+            env.handle_events()
+            # Push all complete experiences into ReplayBuffer
+            experiences = env.buffer.get_all_complete_experiences()
+            for experience in experiences:
                 state = experience["state"]
                 action = experience["action"]
                 reward = experience["reward"]
                 next_state = experience["next_state"]
                 done = experience["done"]
                 agent.remember(state, action, reward, next_state, done)
-                agent.learn()
+            agent.learn()
             action = agent.choose_action(env.state)
             done, info = env.step(action)
 
             # Epsilon decay
             steps = (steps + 1) % decay_interval
             if steps == 0:
-                logger.info(f"Decaying epsilon. Current epsilon: {agent.epsilon}")
                 agent.decay_epsilon()
 
         logger.info(f"Average AoI of episode {i + 1}: {info['average_aoi']:.6f}")
         aois.append(info["average_aoi"])
-        logger.info(f"Episode {i + 1} done. Average AoI: {info['average_aoi']:.6f}")
+        logger.info(f"Dropped ratio of episode {i + 1}: {info['dropped_ratio']:.3}")
+        dropped_ratios.append(info["dropped_ratio"])
+        logger.info(f"---Episode {i + 1} ends---")
 
     logger.info(f"AoI of each episode: {aois}")
+    logger.info(f"Dropped ratio of each episode: {dropped_ratios}")
     logger.info("Saving the results")
     # df = pd.DataFrame({"AoI": aois})
     # df.to_csv("results.csv", index=False)
