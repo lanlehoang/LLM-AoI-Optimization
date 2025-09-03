@@ -3,14 +3,14 @@ satellite:
   height: 600
   n_satellites: 1000
   d_max: 2500 # km
-  angle_limit: 60 # Degree, should be less than 90
+  angle_limit: 75 # Degree, should be less than 90
   n_neighbours: 10 # Maximum number of nearest neighbours to consider per satellite
   # Random mu for different Poisson processes
-  queue_limit: 5  # Maximum queue capacity per satellite
+  queue_limit: 10  # Maximum queue capacity per satellite
   mu:
     lower: 75
     upper: 125
-    start_scale: 40.0  # Make S0 generate more packages to simulate congestion. Should be >> 1.0
+    start_scale: 50.0  # Make S0 generate more packages to simulate congestion. Should be >> 1.0
 
 physics:
   r_earth: 6400 # km
@@ -19,5 +19,5 @@ physics:
 
 baseline_reward:
   alpha: 0.25
-  arrival_bonus: 1
-  drop_penalty: 0.5
+  arrival_bonus: 5.0
+  drop_penalty: 100.0
