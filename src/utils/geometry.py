@@ -30,54 +30,71 @@ def convert_cartesian_to_polar(cartesian_coords: np.ndarray, radius: float):
 
 def find_neighbours(cur_idx, dst_pos, satellite_positions):
     """
-    Find all neighbours of the current satellite that satisfy the following conditions:
-    - Within the communication range: The distance to the neighbour is less than D_MAX.
-    - Forward path: The angles made by the neighbours satellite, the current satellite,
-    and the destination satellite are acute.
-    Returns N_NEIGHBOURS nearest neighbours.
+    Find neighbours of current satellite cur_idx that:
+      - are within D_MAX
+      - form a forward path toward dst_pos (angle condition)
+    Return a list of original indices (in 0..N-1) of up to N_NEIGHBOURS nearest neighbours.
     """
-    # Exclude the current satellite itself
-    cur_pos = satellite_positions[cur_idx]  # Get the current coordinates first
-    satellite_positions = np.delete(satellite_positions, cur_idx, axis=0)
+    # All positions
+    cur_pos = satellite_positions[cur_idx]  # (3,)
 
-    # Calculate distances to all other satellites
-    neighbour_vectors = satellite_positions - cur_pos
-    distances = np.linalg.norm(neighbour_vectors, axis=1)
+    # Compute vectors from current satellite to all others
+    neighbour_vectors = satellite_positions - cur_pos  # (N, 3)
+    distances = np.linalg.norm(neighbour_vectors, axis=1)  # (N,)
 
-    # Communication range filter
+    # Exclude self
+    mask_not_self = np.ones(len(distances), dtype=bool)
+    mask_not_self[cur_idx] = False
+
+    # Communication range filter (exclude self)
     within_range = distances < D_MAX
+    within_range = within_range & mask_not_self
 
     # Forward path condition
     dst_vector = dst_pos - cur_pos
     angle_limit = config["satellite"]["angle_limit"] * np.pi / 180.0
-    forward = np.dot(neighbour_vectors, dst_vector) > np.cos(angle_limit)
-
-    # Combine conditions
-    neighbours = np.where(within_range & forward)[0]
-
-    # Sort neighbours by distance to the current satellite
-    sorted_indices = np.argsort(distances[neighbours])
-    return (
-        neighbours[sorted_indices][:N_NEIGHBOURS].tolist()
-        if len(neighbours) > 0
-        else []
+    # compute dot product for all (including self, which will be masked)
+    dots = np.dot(neighbour_vectors, dst_vector)  # (N,)
+    forward = dots > (
+        np.linalg.norm(neighbour_vectors, axis=1)
+        * np.linalg.norm(dst_vector)
+        * np.cos(angle_limit)
     )
+    forward = forward & mask_not_self
+
+    # Combined filter
+    candidate_mask = within_range & forward
+    candidate_indices = np.where(candidate_mask)[0]  # original indices
+
+    if candidate_indices.size == 0:
+        return []
+
+    # sort the candidates by distance (using original distances)
+    sorted_idx = candidate_indices[np.argsort(distances[candidate_indices])]
+
+    # return up to N_NEIGHBOURS
+    return sorted_idx[:N_NEIGHBOURS].tolist()
 
 
 def compute_arc_length(cur_pos, dst_pos):
     """
-    Compute the arc length between two points on a sphere with radius R_SATELLITE and centre (0, 0, 0).
-    cur_pos and dst_pos are 3D Cartesian coordinates.
+    Compute the exact great-circle distance (arc length) between two points on a sphere.
+    Uses the spherical law of cosines:
+        arc = R * arccos( sinφ1*sinφ2 + cosφ1*cosφ2*cos(Δλ) )
+    where φ = colatitude (0 at north pole), λ = longitude.
     """
+    # Convert Cartesian to polar (θ = longitude, φ = colatitude)
     positions = np.array([cur_pos, dst_pos])
     polar_coords = convert_cartesian_to_polar(positions, R_SATELLITE)
-    theta_diff = polar_coords[1, 0] - polar_coords[0, 0]
-    phi_diff = polar_coords[1, 1] - polar_coords[0, 1]
+    theta1, phi1 = polar_coords[0]
+    theta2, phi2 = polar_coords[1]
 
-    # Ensure the angles are in the range [0, 2*pi]
-    theta_diff = (theta_diff + np.pi) % (2 * np.pi) - np.pi
-    phi_diff = (phi_diff + np.pi) % (2 * np.pi) - np.pi
+    # Spherical law of cosines
+    cos_gamma = np.sin(phi1) * np.sin(phi2) + np.cos(phi1) * np.cos(phi2) * np.cos(
+        theta2 - theta1
+    )
+    # Numerical stability
+    cos_gamma = np.clip(cos_gamma, -1.0, 1.0)
 
-    # Calculate the arc length
-    arc_length = R_SATELLITE * np.sqrt(theta_diff**2 + phi_diff**2)
+    arc_length = R_SATELLITE * np.arccos(cos_gamma)
     return arc_length
