@@ -40,17 +40,6 @@ class DeepSetNetwork(nn.Module):
 
 
 class QNetwork(nn.Module):
-    """
-    Adopt DeepSet architecture to ensure permutation invariance among neighbours states and actions.
-    Input shape:
-    - Relative position of current satellite to destination satellite (3,)
-    - For each neighbour:
-        - Relative position of neighbour to destination satellite (3,)
-        - Processing rate (1,)
-        - Queue length (1,)
-    - Action: (1,)
-    """
-
     def __init__(
         self,
         ds_input_dims,
@@ -68,99 +57,108 @@ class QNetwork(nn.Module):
             output_dim=embed_dims,
             dropout=dropout,
         )
+        # Residual: include neighbour raw state (5) + embedding (E)
         self.fc = nn.Sequential(
-            nn.Linear(2 * embed_dims + 3, final_fc_dims),
-            nn.LeakyReLU(),
+            nn.Linear(8 + 2 * embed_dims, final_fc_dims),
+            nn.LayerNorm(final_fc_dims),
             nn.Dropout(dropout),
+            nn.LeakyReLU(),
             nn.Linear(final_fc_dims, 1),
         )
 
     def forward(self, x):
         """
-        X shape: (batch_size, input_dims)
-        Returns single Q-value for the selected action
+        x: (B, state_dim+1) with appended action index
+        Returns: (B,1) Q-value for selected action
         """
-        # Define input for DeepSet
         cur_pos = x[:, :3]
-        actions = x[:, -1]
-        batch_size = x.shape[0]
-        neighbours = x[:, 3:-1].reshape(batch_size, -1, 5)
-        n_neighbours = neighbours.shape[1]
+        actions = x[:, -1].long()
+        B = x.size(0)
+        neighbours = x[:, 3:-1].reshape(B, -1, 5)
+        N = neighbours.size(1)
 
-        # Concat cur_pos to every single neighbour
-        cur_pos_repeated = cur_pos.unsqueeze(1).repeat(1, n_neighbours, 1)
-        deepset_input = torch.cat((cur_pos_repeated, neighbours), dim=2)
+        # DeepSet embeddings
+        cur_pos_rep = cur_pos.unsqueeze(1).expand(-1, N, -1)  # (B,N,3)
+        ds_input = torch.cat((cur_pos_rep, neighbours), dim=2)  # (B,N,8)
+        embeds = self.deep_set(ds_input.view(-1, ds_input.size(-1)))  # (B*N,E)
+        embeds = embeds.view(B, N, -1)  # (B,N,E)
 
-        # Run through DeepSet network
-        # Embeddings of shape (batch size, n_neighbours, embed_dim)
-        embeds = self.deep_set(deepset_input)
-
-        # Create mask for valid neighbors (non-zero neighbor states)
-        mask = torch.any(neighbours != 0, dim=2)  # Shape: (batch_size, n_neighbours)
-
-        # Apply mask to embeddings and compute masked pooling
+        # Mask invalid neighbours
+        mask = torch.any(neighbours != 0, dim=2)  # (B,N)
         masked_embeds = embeds * mask.unsqueeze(2).float()
         valid_counts = mask.sum(dim=1, keepdim=True).float()
-        pooled_embeds = masked_embeds.sum(dim=1) / torch.clamp(valid_counts, min=1)
+        pooled_embeds = masked_embeds.sum(dim=1) / torch.clamp(valid_counts, min=1.0)
 
-        # Concat cur_pos, selected embedding, and pooled embeddings
-        selected_embeds = embeds[torch.arange(batch_size), actions.long(), :]
-        fc_input = torch.cat((cur_pos, selected_embeds, pooled_embeds), dim=1)
+        # Select chosen neighbour’s embed + raw state
+        chosen_embeds = embeds[torch.arange(B), actions]  # (B,E)
+        chosen_states = neighbours[torch.arange(B), actions]  # (B,5)
 
-        # Final dense layers
-        x = self.fc(fc_input)
-        return x
+        # Fusion: [cur_pos | chosen_embeds | pooled_embeds | chosen_states]
+        fc_input = torch.cat(
+            (cur_pos, chosen_embeds, pooled_embeds, chosen_states), dim=1
+        )
+        return self.fc(fc_input)
 
     def predict(self, states):
         """
-        Predict Q-values Q(s, a) for all actions a (batched).
-        Invalid actions are padded with -inf.
-
+        Predict Q-values Q(s,a) for all actions a (batched).
+        Invalid actions padded with -inf.
         Args:
-            states: (B, state_dim) or (state_dim,)
+            states: (B,S) or (S,)
         Returns:
-            q_all: (B, n_actions) if batched, else (n_actions,)
+            q_all: (B,n_actions) or (n_actions,)
         """
         if states.dim() == 1:
-            states = states.unsqueeze(0)  # (1, S)
+            states = states.unsqueeze(0)
         B = states.size(0)
-        n_actions = system_config["satellite"]["n_neighbours"]
+        N = system_config["satellite"]["n_neighbours"]
 
-        q_all = torch.full((B, n_actions), -float("inf"), device=states.device)
+        # Expand for all possible actions
+        actions = torch.arange(N, device=states.device).repeat(B, 1)  # (B,N)
+        states_rep = states.unsqueeze(1).repeat(1, N, 1)  # (B,N,S)
+        sa_pairs = torch.cat(
+            (states_rep, actions.unsqueeze(2).float()), dim=2
+        )  # (B,N,S+1)
 
+        # Flatten to batch
+        sa_pairs = sa_pairs.view(B * N, -1)
         with torch.no_grad():
             self.eval()
-            for b in range(B):
-                state = states[b]
-                neighbour_states = state[3:].reshape(-1, 5)
-                valid_actions = torch.where(torch.any(neighbour_states != 0, dim=1))[0]
+            q_vals = self.forward(sa_pairs).view(B, N)  # (B,N)
 
-                if valid_actions.numel() > 0:
-                    x = state.repeat(valid_actions.shape[0], 1)
-                    x = torch.cat((x, valid_actions.unsqueeze(1).float()), dim=1)
-                    q_valid = self.forward(x).squeeze(-1)  # (n_valid,)
-                    q_all[b, valid_actions] = q_valid
+        # Mask invalid neighbours
+        neighbours = states[:, 3:].reshape(B, N, 5)
+        mask = torch.any(neighbours != 0, dim=2)  # (B,N)
+        q_vals[~mask] = -float("inf")
 
-        return q_all.squeeze(0) if B == 1 else q_all
+        return q_vals.squeeze(0) if B == 1 else q_vals
 
-    def fit(self, X, y, lr, epochs=1):
+    def fit(self, states, actions, targets, lr, epochs=1):
         """
-        X: (batch_size, input_dims): Concatenation of states and actions
-        y: (batch_size, 1))
+        Train the network on (s,a) → target Q(s,a).
+        Args:
+            states: (B,S)
+            actions: (B,) Long indices
+            targets: (B,1) TD targets
         """
         optimizer = torch.optim.Adam(self.parameters(), lr=lr)
         loss_fn = nn.SmoothL1Loss()
-        avg_loss = 0
+        avg_loss = 0.0
         self.train()
+
         for _ in range(epochs):
             optimizer.zero_grad()
-            y_pred = self.forward(X)
-            loss = loss_fn(y_pred, y)
+            # Build (s,a) input
+            sa_pairs = torch.cat(
+                (states, actions.unsqueeze(1).float()), dim=1
+            )  # (B,S+1)
+            q_pred = self.forward(sa_pairs)  # (B,1)
+            loss = loss_fn(q_pred, targets)
             loss.backward()
             optimizer.step()
             avg_loss += loss.item()
-        avg_loss /= epochs
-        return avg_loss
+
+        return avg_loss / epochs
 
 
 class ReplayBuffer(object):
@@ -199,7 +197,7 @@ class ReplayBuffer(object):
 
 
 class Agent:
-    def __init__(self, input_dims, mem_size=1500):
+    def __init__(self, input_dims, mem_size=2048, target_update_interval=10):
         n_actions = system_config["satellite"]["n_neighbours"]
         self.action_space = np.arange(n_actions)
         self.gamma = agent_config["train"]["gamma"]
@@ -209,6 +207,7 @@ class Agent:
         self.batch_size = agent_config["train"]["batch_size"]
         self.memory = ReplayBuffer(mem_size, input_dims)
         self.lr = agent_config["train"]["lr"]
+
         self.q_eval = QNetwork(
             ds_input_dims=8,
             ds_fc1_dims=agent_config["dqn"]["deepset"]["fc1_dims"],
@@ -218,6 +217,22 @@ class Agent:
             dropout=agent_config["dqn"]["dropout"],
         ).to(DEVICE)
 
+        self.q_target = QNetwork(
+            ds_input_dims=8,
+            ds_fc1_dims=agent_config["dqn"]["deepset"]["fc1_dims"],
+            ds_fc2_dims=agent_config["dqn"]["deepset"]["fc2_dims"],
+            embed_dims=agent_config["dqn"]["deepset"]["embedding_dims"],
+            final_fc_dims=agent_config["dqn"]["final_fc_dims"],
+            dropout=agent_config["dqn"]["dropout"],
+        ).to(DEVICE)
+
+        self.q_target.load_state_dict(self.q_eval.state_dict())
+        self.learn_step_counter = 0
+        self.target_update_interval = target_update_interval
+
+    def update_target_network(self):
+        self.q_target.load_state_dict(self.q_eval.state_dict())
+
     def remember(self, state, action, reward, new_state, done):
         self.memory.store_transition(state, action, reward, new_state, done)
 
@@ -225,10 +240,8 @@ class Agent:
         if self.epsilon > self.epsilon_min:
             self.epsilon = max(self.epsilon * self.epsilon_dec, self.epsilon_min)
 
-    # Epsilon-greedy policy
     def choose_action(self, state):
         rand = np.random.random()
-        # ensure state is a torch tensor on DEVICE for predict
         if not isinstance(state, torch.Tensor):
             state_t = torch.tensor(state, dtype=torch.float32, device=DEVICE)
         else:
@@ -239,41 +252,36 @@ class Agent:
             valid_actions = np.where(np.any(neighbour_states != 0, axis=1))[0]
             action = int(np.random.choice(valid_actions))
         else:
-            q_values = self.q_eval.predict(state_t)  # returns torch tensor (n_actions,)
+            q_values = self.q_eval.predict(state_t)
             action = int(torch.argmax(q_values).item())
         return action
 
     def learn(self):
-        # Start training when there are sufficient samples
         if self.memory.mem_counter >= self.batch_size:
-            # 1) Sample
+            # 1. Sample batch
             states, actions_idx, rewards, new_states, not_done = (
                 self.memory.sample_buffer(self.batch_size)
             )
 
-            # 2) To device & shapes
-            states = states.to(DEVICE).float()  # (B, S)
-            new_states = new_states.to(DEVICE).float()  # (B, S)
-            rewards = rewards.to(DEVICE).float().unsqueeze(1)  # (B, 1)
-            not_done = not_done.to(DEVICE).float().unsqueeze(1)  # (B, 1)
-            actions_idx = actions_idx.to(DEVICE).long().unsqueeze(1)  # (B, 1)
+            # 2. To device
+            states = states.to(DEVICE).float()
+            new_states = new_states.to(DEVICE).float()
+            rewards = rewards.to(DEVICE).float().unsqueeze(1)
+            not_done = not_done.to(DEVICE).float().unsqueeze(1)
+            actions_idx = actions_idx.to(DEVICE).long()  # (B,)
 
-            # 3) Build (s,a) pairs and get q_eval (used by fit)
-            sa_pairs = torch.cat((states, actions_idx.float()), dim=1)  # (B, S+1)
+            # 3. Target network for Q(s',a')
+            with torch.no_grad():
+                q_next = (
+                    self.q_target.predict(new_states).max(dim=1, keepdim=True).values
+                )
 
-            # 4) max_a' Q(s',a') using batched predict (returns (B, n_actions))
-            q_next = (
-                self.q_eval.predict(new_states).max(dim=1, keepdim=True).values
-            )  # (B, 1)
+            q_target = rewards + self.gamma * q_next * not_done
 
-            # 5) TD target (your terminal memory stores 1 - done)
-            q_target = rewards + self.gamma * q_next * not_done  # (B, 1)
+            # 4. Train eval net
+            _ = self.q_eval.fit(states, actions_idx, q_target, lr=self.lr)
 
-            # 6) single optimization step via existing fit()
-            _ = self.q_eval.fit(sa_pairs, q_target, lr=self.lr)
-
-    def save_model(self):
-        pass
-
-    def load_model(self):
-        pass
+            # 5. Target network sync
+            self.learn_step_counter += 1
+            if self.learn_step_counter % self.target_update_interval == 0:
+                self.update_target_network()
