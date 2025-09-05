@@ -48,6 +48,7 @@ class QNetwork(nn.Module):
         embed_dims,
         final_fc_dims,
         dropout,
+        lr,
     ):
         super().__init__()
         self.deep_set = DeepSetNetwork(
@@ -65,6 +66,8 @@ class QNetwork(nn.Module):
             nn.LeakyReLU(),
             nn.Linear(final_fc_dims, 1),
         )
+        self.optimizer = torch.optim.Adam(self.parameters(), lr=lr)
+        self.loss_fn = nn.SmoothL1Loss()
 
     def forward(self, x):
         """
@@ -133,7 +136,7 @@ class QNetwork(nn.Module):
 
         return q_vals.squeeze(0) if B == 1 else q_vals
 
-    def fit(self, states, actions, targets, lr, epochs=1):
+    def fit(self, states, actions, targets, epochs=1):
         """
         Train the network on (s,a) → target Q(s,a).
         Args:
@@ -141,21 +144,19 @@ class QNetwork(nn.Module):
             actions: (B,) Long indices
             targets: (B,1) TD targets
         """
-        optimizer = torch.optim.Adam(self.parameters(), lr=lr)
-        loss_fn = nn.SmoothL1Loss()
         avg_loss = 0.0
         self.train()
 
         for _ in range(epochs):
-            optimizer.zero_grad()
+            self.optimizer.zero_grad()
             # Build (s,a) input
             sa_pairs = torch.cat(
                 (states, actions.unsqueeze(1).float()), dim=1
             )  # (B,S+1)
             q_pred = self.forward(sa_pairs)  # (B,1)
-            loss = loss_fn(q_pred, targets)
+            loss = self.loss_fn(q_pred, targets)
             loss.backward()
-            optimizer.step()
+            self.optimizer.step()
             avg_loss += loss.item()
 
         return avg_loss / epochs
@@ -215,6 +216,7 @@ class Agent:
             embed_dims=agent_config["dqn"]["deepset"]["embedding_dims"],
             final_fc_dims=agent_config["dqn"]["final_fc_dims"],
             dropout=agent_config["dqn"]["dropout"],
+            lr=self.lr,
         ).to(DEVICE)
 
         self.q_target = QNetwork(
@@ -224,6 +226,7 @@ class Agent:
             embed_dims=agent_config["dqn"]["deepset"]["embedding_dims"],
             final_fc_dims=agent_config["dqn"]["final_fc_dims"],
             dropout=agent_config["dqn"]["dropout"],
+            lr=self.lr,
         ).to(DEVICE)
 
         self.q_target.load_state_dict(self.q_eval.state_dict())
@@ -279,7 +282,7 @@ class Agent:
             q_target = rewards + self.gamma * q_next * not_done
 
             # 4. Train eval net
-            _ = self.q_eval.fit(states, actions_idx, q_target, lr=self.lr)
+            _ = self.q_eval.fit(states, actions_idx, q_target)
 
             # 5. Target network sync
             self.learn_step_counter += 1
