@@ -23,5 +23,5 @@ train:
   epsilon:
     init: 1.0
     min: 0.001
-    decay: 0.99
-    decay_interval: 50  # Steps per epsilon decay
+    decay: 0.995
+    decay_interval: 100  # Steps per epsilon decay
