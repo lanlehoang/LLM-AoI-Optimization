@@ -19,7 +19,7 @@ pip install torch --index-url https://download.pytorch.org/whl/cpu
 
 - For GPU support (CUDA 12.3):
 ```bash
-pip install torch --index-url https://download.pytorch.org/whl/cu123
+pip install torch --index-url https://download.pytorch.org/whl/cu121
 ```
 
 Install the remaining dependencies
