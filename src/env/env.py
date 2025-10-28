@@ -1,3 +1,4 @@
+from enum import Enum
 import numpy as np
 from src.utils.generators import *
 from src.utils.geometry import *
@@ -7,6 +8,12 @@ from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
 system_config = get_system_config()
+
+
+class RewardType(Enum):
+    DROPPED = "dropped"
+    ARRIVED = "arrived"
+    QUEUED = "queued"
 
 
 class SatelliteEnv:
@@ -289,3 +296,20 @@ class SatelliteEnv:
                 info["dropped_ratio"] = dropped_ratio
 
             return episode_done, info
+
+    def _get_reward(self, reward_type: RewardType):
+        """
+        A generic reward function which calculates the reward based on current state.
+        """
+        # TODO: Implement a reward function to call
+        # CASE 1: Package dropped
+        if reward_type == RewardType.DROPPED:
+            return system_config["baseline_reward"]["drop_penalty"]
+
+        # CASE 2: Package reached destination
+        elif reward_type == RewardType.ARRIVED:
+            pass
+
+        # CASE 3: Package successfully queued in an intermediate satellite
+        else:
+            pass
