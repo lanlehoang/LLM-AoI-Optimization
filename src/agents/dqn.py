@@ -3,11 +3,14 @@ import torch.nn as nn
 import torch.nn.functional as f
 import numpy as np
 from src.utils.get_config import get_agent_config, get_system_config
+from src.utils.logger import get_logger
 
 agent_config = get_agent_config()
 system_config = get_system_config()
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+logger = get_logger(__name__)
 
 
 class DeepSetNetwork(nn.Module):
@@ -199,6 +202,7 @@ class ReplayBuffer(object):
 
 class Agent:
     def __init__(self, input_dims, mem_size=2048, target_update_interval=10):
+        logger.info(f"Initializing DQN Agent with device: {DEVICE}")
         n_actions = system_config["satellite"]["n_neighbours"]
         self.action_space = np.arange(n_actions)
         self.gamma = agent_config["train"]["gamma"]

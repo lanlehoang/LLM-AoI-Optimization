@@ -9,7 +9,7 @@ satellite:
   mu:
     lower: 100
     upper: 125
-    start_scale: 40.0  # Make S0 generate more packages to simulate congestion. Should be >> 1.0
+    start_scale: 50.0  # Make S0 generate more packages to simulate congestion. Should be >> 1.0
   queue_limit: 25  # Maximum queue capacity per satellite
 
 physics:
