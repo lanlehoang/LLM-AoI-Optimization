@@ -1,7 +1,7 @@
 satellite:
   # Height config in kilometers
   height: 600
-  n_satellites: 1200
+  n_satellites: 1500
   d_max: 2000 # km
   angle_limit: 75 # Degree, should be less than 90
   n_neighbours: 10 # Maximum number of nearest neighbours to consider per satellite
@@ -10,7 +10,7 @@ satellite:
     lower: 100
     upper: 125
     start_scale: 50.0  # Make S0 generate more packages to simulate congestion. Should be >> 1.0
-  queue_limit: 25  # Maximum queue capacity per satellite
+  queue_limit: 20  # Maximum queue capacity per satellite
 
 physics:
   r_earth: 6400 # km
@@ -19,5 +19,5 @@ physics:
 
 baseline_reward:
   alpha: 0.25
-  arrival_bonus: 10.0
-  drop_penalty: 10.0
+  arrival_bonus: 1.0
+  drop_penalty: 1.0
