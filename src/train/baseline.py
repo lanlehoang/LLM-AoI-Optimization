@@ -45,7 +45,7 @@ def main():
                 done = experience["done"]
                 agent.remember(state, action, reward, next_state, done)
             agent.learn()
-            action = agent.choose_action(env.state)
+            action, _, _ = agent.choose_action(env.state)
             done, info = env.step(action)
 
             # Epsilon decay

@@ -261,7 +261,7 @@ class Agent:
         else:
             q_values = self.q_eval.predict(state_t)
             action = int(torch.argmax(q_values).item())
-        return action
+        return action, state, q_values  # Return state and Q values for logging
 
     def learn(self):
         if self.memory.mem_counter >= self.batch_size:

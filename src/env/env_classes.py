@@ -14,8 +14,8 @@ class EventType(Enum):
 
 
 class Event:
-    def __init__(self, package_id, event_time, event_type, sat):
-        self.package_id = package_id
+    def __init__(self, packet_id, event_time, event_type, sat):
+        self.packet_id = packet_id
         self.event_time = event_time
         self.event_type = event_type
         self.sat = sat
@@ -44,7 +44,7 @@ class Satellite:
         self.queue_length = queue_length
         self.busy_time = 0  # This satellite will be busy until this time
 
-    def enqueue_package(self, start_time, processing_time):
+    def enqueue_packet(self, start_time, processing_time):
         """
         Increment the queue length of the satellite.
         Add processing_time to busy time
@@ -52,14 +52,14 @@ class Satellite:
         self.queue_length += 1
         self.busy_time = start_time + processing_time
 
-    def dequeue_package(self):
+    def dequeue_packet(self):
         """
         Decrement the queue length of the satellite.
         """
         if self.queue_length > 0:
             self.queue_length -= 1
         else:
-            raise ValueError("Queue is empty, cannot dequeue package.")
+            raise ValueError("Queue is empty, cannot dequeue packet.")
 
     def reset_queue(self):
         """
@@ -78,28 +78,28 @@ class Satellite:
         self.queue_length = length
 
 
-class Package:
+class Packet:
     def __init__(self, generation_time):
         self.generation_time = generation_time
         self.end_time = None  # To be set when processing is complete
-        self.sent_time = None  # To be set when package is sent
+        self.sent_time = None  # To be set when packet is sent
         self.dropped = False
 
     def record_end_time(self, end_time):
         """
-        Record the end time of the package processing.
+        Record the end time of the packet processing.
         """
         self.end_time = end_time
 
     def record_sent_time(self, sent_time):
         """
-        Record the sent time of the package.
+        Record the sent time of the packet.
         """
         self.sent_time = sent_time
 
     def drop(self):
         """
-        Mark the package as dropped.
+        Mark the packet as dropped.
         """
         self.dropped = True
 
@@ -121,40 +121,40 @@ class ExperienceBuffer:
     """
     Store incomplete experiences e = (s, a, r, s').
     Necessary because s' IS NOT IMMEDIATELY AVAILABLE after taking action a.
-    The next time the same package is processed, we can update s' and push it out of the buffer.
+    The next time the same packet is processed, we can update s' and push it out of the buffer.
     """
 
     def __init__(self):
         self.buffer = {}
         self.complete_experiences = []
 
-    def add_experience(self, package_id, experience: Experience):
+    def add_experience(self, packet_id, experience: Experience):
         """
         Add an experience to the buffer.
         """
-        self.buffer[package_id] = experience
+        self.buffer[packet_id] = experience
 
-    def update_experience(self, package_id, new_experience: Experience):
+    def update_experience(self, packet_id, new_experience: Experience):
         """
-        Update the state of an experience in the buffer based on package_id.
+        Update the state of an experience in the buffer based on packet_id.
         """
-        if package_id in self.buffer:
-            experience = self.buffer[package_id]
+        if packet_id in self.buffer:
+            experience = self.buffer[packet_id]
             for key in new_experience:
                 if new_experience[key] is not None:
                     experience[key] = new_experience[key]
         else:
-            raise KeyError(f"Package ID {package_id} not found in buffer.")
+            raise KeyError(f"Packet ID {packet_id} not found in buffer.")
 
-    def complete_experience(self, package_id):
+    def complete_experience(self, packet_id):
         """
-        Remove a complete experience from the buffer based on package_id.
+        Remove a complete experience from the buffer based on packet_id.
         An experience is said to be complete if all of its fields are not None.
         """
-        if package_id in self.buffer:
-            self.complete_experiences.append(self.buffer.pop(package_id))
+        if packet_id in self.buffer:
+            self.complete_experiences.append(self.buffer.pop(packet_id))
         else:
-            raise KeyError(f"Package ID {package_id} not found in buffer.")
+            raise KeyError(f"Packet ID {packet_id} not found in buffer.")
 
     def get_all_complete_experiences(self):
         experiences = self.complete_experiences
