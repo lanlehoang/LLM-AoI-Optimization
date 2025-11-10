@@ -53,14 +53,14 @@ def main():
             if steps == 0:
                 agent.decay_epsilon()
 
-        logger.info(f"Average AoI of episode {i + 1}: {info['average_aoi']:.6f}")
+        logger.info(f"Average AoI of episode {i + 1}: {info['average_aoi']:.4f}")
         aois.append(info["average_aoi"])
-        logger.info(f"Dropped ratio of episode {i + 1}: {info['dropped_ratio']:.3}")
+        logger.info(f"Dropped ratio of episode {i + 1}: {info['dropped_ratio']:.4f}")
         dropped_ratios.append(info["dropped_ratio"])
         logger.info(f"---Episode {i + 1} ends---")
 
-    logger.info(f"AoI of each episode: {aois}")
-    logger.info(f"Dropped ratio of each episode: {dropped_ratios}")
+    logger.info(f"AoI: {[np.round(aois, 4)]}")
+    logger.info(f"Dropped ratios: {[ratio for ratio in np.round(dropped_ratios, 4)]}")
     logger.info("Saving the results")
     # df = pd.DataFrame({"AoI": aois})
     # df.to_csv("results.csv", index=False)
