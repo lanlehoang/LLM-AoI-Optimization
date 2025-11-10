@@ -276,7 +276,7 @@ class SatelliteEnv:
             )
             logger.info(
                 f"Package ID {self.cur_package} reached the destination. "
-                f"AoI: {arrival_time - self.packages[self.cur_package].generation_time:.6}"
+                f"AoI: {arrival_time - self.packages[self.cur_package].generation_time:.4}"
             )
             self.buffer.complete_experience(package_id=self.cur_package)
 
