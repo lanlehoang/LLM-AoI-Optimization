@@ -23,7 +23,7 @@ train:
   epsilon:
     init: 1.0
     min: 0.005
-    decay: 0.996
+    decay: 0.997
     decay_interval: 50  # Steps per epsilon decay
   reward:
     alpha: 0.25
