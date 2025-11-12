@@ -4,12 +4,15 @@ from src.utils.get_config import get_agent_config, get_system_config
 from src.utils.generators import RANDOM_SEED
 from src.agents.dqn import Agent
 import numpy as np
+from src.env.state_models import EnvironmentState
 
 # import pandas as pd
 
 logger = get_logger(__name__)
 system_config = get_system_config()
 agent_config = get_agent_config()
+
+ENVIRONMENT_SHAPE = EnvironmentState.STATE_DIM
 
 
 def main():
@@ -18,9 +21,7 @@ def main():
     env = SatelliteEnv()
 
     logger.info("Initializing the agent")
-    agent = Agent(
-        input_dims=53
-    )  # TODO: Convert input_dims to variable instead of hardcode
+    agent = Agent(input_dims=ENVIRONMENT_SHAPE)
     steps = 0  # Count steps to decay epsilon
     decay_interval = agent_config["train"]["epsilon"]["decay_interval"]
 
@@ -59,8 +60,8 @@ def main():
         dropped_ratios.append(info["dropped_ratio"])
         logger.info(f"---Episode {i + 1} ends---")
 
-    logger.info(f"AoI: {[np.round(aois, 4)]}")
-    logger.info(f"Dropped ratios: {[ratio for ratio in np.round(dropped_ratios, 4)]}")
+    logger.info(f"AoI: {[aoi.item() for aoi in np.round(aois, 4)]}")
+    logger.info(f"Dropped ratios: {[r.item() for r in np.round(dropped_ratios, 4)]}")
     logger.info("Saving the results")
     # df = pd.DataFrame({"AoI": aois})
     # df.to_csv("results.csv", index=False)

@@ -5,6 +5,7 @@ from src.utils.geometry import *
 from src.utils.get_config import get_system_config, get_agent_config
 from src.env.env_classes import *
 from src.utils.logger import get_logger
+from src.env.state_models import NeighbourState, EnvironmentState
 
 logger = get_logger(__name__)
 system_config = get_system_config()
@@ -62,16 +63,16 @@ class SatelliteEnv:
             for i in range(self.n_satellites)
         ]
 
-        # Generate all packages at the start satellite
+        # Generate all packets at the start satellite
         mu = self.satellites[self.start].processing_rate
         simulation_time = system_config["physics"]["simulation_time"]
-        # Generate all packages at the start satellite
-        self.initial_packages = generate_all_packages(mu, simulation_time)
-        logger.info(f"Number of packages generated: {len(self.initial_packages)}")
+        # Generate all packets at the start satellite
+        self.initial_packets = generate_all_packets(mu, simulation_time)
+        logger.info(f"Number of packets generated: {len(self.initial_packets)}")
 
     def reset(self):
         """
-        Empty satellite queues and reset packages.
+        Empty satellite queues and reset packets.
         Args:
             seed (int, optional): Random seed.
             options (dict, optional): Additional options.
@@ -82,17 +83,17 @@ class SatelliteEnv:
         for satellite in self.satellites:
             satellite.reset_queue()
 
-        # Reset packages and event queue
-        self.packages = [Package(gen_time) for _, gen_time in self.initial_packages]
+        # Reset packets and event queue
+        self.packets = [Packet(gen_time) for _, gen_time in self.initial_packets]
 
         self.event_queue = EventQueue(
             [
                 Event(pkg_id, generation_time, EventType.PROCESSED.value, self.start)
-                for pkg_id, generation_time in self.initial_packages
+                for pkg_id, generation_time in self.initial_packets
             ]
         )
         self.satellites[self.start].set_queue_length(
-            len(self.packages)
+            len(self.packets)
         )  # Set initial queue length for start satellite
 
         # Initialize the buffer for storing experiences
@@ -101,7 +102,7 @@ class SatelliteEnv:
         # State related variables (to be updated with handle_events)
         self.state = None
         self.time = None
-        self.cur_package = None
+        self.cur_packet = None
         self.cur_sat = None
         self.neighbours = []
 
@@ -116,7 +117,7 @@ class SatelliteEnv:
 
         # Handle ARRIVAL events
         while event.event_type == EventType.ARRIVAL.value:
-            package_id = event.package_id
+            packet_id = event.packet_id
             event_time = event.event_time
             src = event.sat
             # Start processing
@@ -126,27 +127,27 @@ class SatelliteEnv:
                 sat.busy_time > event_time
                 and sat.queue_length >= system_config["satellite"]["queue_limit"]
             ):
-                self.packages[package_id].drop()
+                self.packets[packet_id].drop()
                 reward = -agent_config["train"]["reward"]["drop_penalty"]
                 self.buffer.update_experience(
-                    package_id=package_id,
+                    packet_id=packet_id,
                     new_experience={
                         "reward": reward,
-                        "next_state": self.state,  # Doesn't matter as the package is done
-                        "done": True,  # Done package, not done episode
+                        "next_state": self.state,  # Doesn't matter as the packet is done
+                        "done": True,  # Done packet, not done episode
                     },
                 )
-                logger.info(f"Package ID {package_id} dropped by satellite {src}.")
-                self.buffer.complete_experience(package_id=package_id)
+                logger.info(f"Packet ID {packet_id} dropped by satellite {src}.")
+                self.buffer.complete_experience(packet_id=packet_id)
             else:
-                # Start processing when the package arrives and the satellite is ready
+                # Start processing when the packet arrives and the satellite is ready
                 start_time = max(sat.busy_time, event_time)
                 processing_time = generate_processing_time(mu=sat.processing_rate)
-                sat.enqueue_package(
+                sat.enqueue_packet(
                     start_time=start_time, processing_time=processing_time
                 )
                 new_event = Event(
-                    package_id=package_id,
+                    packet_id=packet_id,
                     event_time=start_time + processing_time,
                     event_type=EventType.PROCESSED.value,
                     sat=src,
@@ -154,7 +155,7 @@ class SatelliteEnv:
                 self.event_queue.push(new_event)
                 # Calculate reward
                 reward_time = (
-                    start_time + processing_time - self.packages[package_id].sent_time
+                    start_time + processing_time - self.packets[packet_id].sent_time
                 )
                 reward_dist = compute_arc_length(
                     self.satellite_positions[src], self.satellite_positions[self.end]
@@ -163,21 +164,20 @@ class SatelliteEnv:
                 alpha = agent_config["train"]["reward"]["alpha"]
                 reward = -(reward_time + alpha * reward_dist / c)
                 self.buffer.update_experience(
-                    package_id=package_id,
+                    packet_id=packet_id,
                     new_experience={"reward": reward, "done": False},
                 )
             # Continue resolving ARRIVAL events
             event = self.event_queue.pop()
 
         # Handle a single PROCESSED event
-        package_id = event.package_id
+        packet_id = event.packet_id
         event_time = event.event_time
         src = event.sat
 
         # Current and destination positions
         cur_pos = self.satellite_positions[src]
         dst_pos = self.satellite_positions[self.end]
-        rel_pos = dst_pos - cur_pos
 
         # Find all neighbours
         neighbour_indices = find_neighbours(
@@ -189,49 +189,56 @@ class SatelliteEnv:
         n_neighbours = len(neighbours)
 
         # State of each neighbour
-        neighbour_states = np.array([])
+        neighbour_states = []
         for sat in neighbours:
-            rel_sat_pos = dst_pos - sat.position
-            neighbour_states = np.hstack(
-                [neighbour_states, rel_sat_pos, sat.processing_rate, sat.queue_length]
+            euc_dist = compute_euclidean_distance(cur_pos, sat.position)
+            arc_len = compute_arc_length(sat.position, dst_pos)
+            sat_state = NeighbourState(
+                distance=euc_dist,
+                arc_length=arc_len,
+                processing_rate=sat.processing_rate,
+                queue_length=sat.queue_length,
             )
+            neighbour_states.append(sat_state)
         n_neighbours_max = system_config["satellite"]["n_neighbours"]
-        paddings = np.zeros(5 * (n_neighbours_max - n_neighbours))
-        neighbour_states = np.hstack([neighbour_states, paddings])
+        paddings = [
+            NeighbourState(distance=0, arc_length=0, processing_rate=0, queue_length=0)
+        ] * (n_neighbours_max - n_neighbours)
+        neighbour_states.extend(paddings)
 
-        # Concatenate everything and flatten into an 1-d array
-        self.state = np.hstack([rel_pos, neighbour_states])
+        # Update the environment state
+        self.state = EnvironmentState(neighbours=neighbour_states).to_numpy()
 
         # Other variable updates
         self.time = event_time
-        self.cur_package = package_id
+        self.cur_packet = packet_id
         self.cur_sat = src
         self.neighbours = neighbour_indices
 
         # Update the buffer
-        if package_id in self.buffer.buffer:
+        if packet_id in self.buffer.buffer:
             self.buffer.update_experience(
-                package_id=package_id, new_experience={"next_state": self.state}
+                packet_id=packet_id, new_experience={"next_state": self.state}
             )
-            self.buffer.complete_experience(package_id)
+            self.buffer.complete_experience(packet_id)
 
         # Overwrite the experience in the buffer
         self.buffer.add_experience(
-            package_id=package_id, experience={"state": self.state}
+            packet_id=packet_id, experience={"state": self.state}
         )
 
     def step(self, action):
         """
-        After each event, take an action of transferring a package to another satellite.
+        After each event, take an action of transferring a packet to another satellite.
         Note that the state right after the action IS NOT s'.
         By definition, s' should be the state at which we are ready to take the next action.
-        Thus, we need to wait for the next PROCESS event of the SAME package to update the state.
+        Thus, we need to wait for the next PROCESS event of the SAME packet to update the state.
         """
         # Get the destination satellite index based on the action
         dst = self.neighbours[action]
 
-        # Dequeue the package from the source satellite
-        self.satellites[self.cur_sat].dequeue_package()
+        # Dequeue the packet from the source satellite
+        self.satellites[self.cur_sat].dequeue_packet()
 
         # Calculate transmission time
         c = system_config["physics"]["c"]
@@ -240,16 +247,16 @@ class SatelliteEnv:
         )
         arrival_time = self.time + dist / c
 
-        # Push new event into the event queue if the package hasn't reached the end
+        # Push new event into the event queue if the packet hasn't reached the end
         if dst != self.end:
-            self.packages[self.cur_package].record_sent_time(self.time)
+            self.packets[self.cur_packet].record_sent_time(self.time)
             self.buffer.update_experience(
-                self.cur_package,
+                self.cur_packet,
                 new_experience={"action": action, "done": False},
             )
             # Push new ARRIVAL event
             arrival_event = Event(
-                package_id=self.cur_package,
+                packet_id=self.cur_packet,
                 event_time=arrival_time,
                 event_type=EventType.ARRIVAL.value,
                 sat=dst,  # destination satellite
@@ -258,7 +265,7 @@ class SatelliteEnv:
             return False, {}
         else:
             # Record the end time otherwise
-            self.packages[self.cur_package].record_end_time(arrival_time)
+            self.packets[self.cur_packet].record_end_time(arrival_time)
             # Calculate reward time
             reward_time = arrival_time - self.time
             arrival_bonus = agent_config["train"]["reward"]["arrival_bonus"]
@@ -266,33 +273,33 @@ class SatelliteEnv:
 
             # Update the experience in the buffer with action, reward, and done
             self.buffer.update_experience(
-                self.cur_package,
+                self.cur_packet,
                 new_experience={
                     "action": action,
                     "reward": reward,
-                    "next_state": self.state,  # Doesn't matter as the package is done
-                    "done": True,  # Done package, not done episode
+                    "next_state": self.state,  # Doesn't matter as the packet is done
+                    "done": True,  # Done packet, not done episode
                 },
             )
             logger.info(
-                f"Package ID {self.cur_package} reached the destination. "
-                f"AoI: {arrival_time - self.packages[self.cur_package].generation_time:.4}"
+                f"Packet ID {self.cur_packet} reached the destination. "
+                f"AoI: {arrival_time - self.packets[self.cur_packet].generation_time:.4}"
             )
-            self.buffer.complete_experience(package_id=self.cur_package)
+            self.buffer.complete_experience(packet_id=self.cur_packet)
 
-            # Calculate the average AoI and package drop ratio once done
+            # Calculate the average AoI and packet drop ratio once done
             episode_done = len(self.event_queue.events) == 0
             info = {}
             if episode_done:
                 avg_aoi = np.mean(
                     [
                         pkg.end_time - pkg.generation_time
-                        for pkg in self.packages
+                        for pkg in self.packets
                         if not pkg.dropped
                     ]
                 )
-                n_dropped = len([pkg for pkg in self.packages if pkg.dropped])
-                dropped_ratio = n_dropped / len(self.packages)
+                n_dropped = len([pkg for pkg in self.packets if pkg.dropped])
+                dropped_ratio = n_dropped / len(self.packets)
                 info["average_aoi"] = avg_aoi
                 info["dropped_ratio"] = dropped_ratio
 
@@ -303,14 +310,14 @@ class SatelliteEnv:
         A generic reward function which calculates the reward based on current state.
         """
         # TODO: Implement a reward function to call
-        # CASE 1: Package dropped
+        # CASE 1: Packet dropped
         if reward_type == RewardType.DROPPED:
             return agent_config["train"]["reward"]["drop_penalty"]
 
-        # CASE 2: Package reached destination
+        # CASE 2: Packet reached destination
         elif reward_type == RewardType.ARRIVED:
             pass
 
-        # CASE 3: Package successfully queued in an intermediate satellite
+        # CASE 3: Packet successfully queued in an intermediate satellite
         else:
             pass

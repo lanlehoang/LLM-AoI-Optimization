@@ -4,11 +4,14 @@ import torch.nn.functional as f
 import numpy as np
 from src.utils.get_config import get_agent_config, get_system_config
 from src.utils.logger import get_logger
+from src.env.state_models import NeighbourState, EnvironmentState
 
 agent_config = get_agent_config()
 system_config = get_system_config()
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+NEIGHBOUR_SHAPE = NeighbourState.STATE_DIM
+ENVIRONMENT_SHAPE = EnvironmentState.STATE_DIM
 
 logger = get_logger(__name__)
 
@@ -17,8 +20,7 @@ class DeepSetNetwork(nn.Module):
     """
     Implement the \phi function in DeepSet for processing satellite and neighbour information.
     Input to the DeepSet:
-    - Current satellite relative position to destination (3,) (as contextual input)
-    - Each neighbour is represented as a vector of shape (5,)
+    - Each neighbour is represented as a vector of shape (NEIGHBOUR_SHAPE,)
     Output:
     - Embedding vector of shape (output_dim,)
     """
@@ -61,9 +63,9 @@ class QNetwork(nn.Module):
             output_dim=embed_dims,
             dropout=dropout,
         )
-        # Residual: include neighbour raw state (5) + embedding (E)
+        # Residual: include neighbour raw state (4) + its embedding (E)
         self.fc = nn.Sequential(
-            nn.Linear(8 + 2 * embed_dims, final_fc_dims),
+            nn.Linear(NEIGHBOUR_SHAPE + 2 * embed_dims, final_fc_dims),
             nn.LayerNorm(final_fc_dims),
             nn.Dropout(dropout),
             nn.LeakyReLU(),
@@ -77,17 +79,14 @@ class QNetwork(nn.Module):
         x: (B, state_dim+1) with appended action index
         Returns: (B,1) Q-value for selected action
         """
-        cur_pos = x[:, :3]
         actions = x[:, -1].long()
         B = x.size(0)
-        neighbours = x[:, 3:-1].reshape(B, -1, 5)
+        neighbours = x[:, :-1].reshape(B, -1, NEIGHBOUR_SHAPE)
         N = neighbours.size(1)
 
         # DeepSet embeddings
-        cur_pos_rep = cur_pos.unsqueeze(1).expand(-1, N, -1)  # (B,N,3)
-        ds_input = torch.cat((cur_pos_rep, neighbours), dim=2)  # (B,N,8)
-        embeds = self.deep_set(ds_input.view(-1, ds_input.size(-1)))  # (B*N,E)
-        embeds = embeds.view(B, N, -1)  # (B,N,E)
+        embeds = self.deep_set(neighbours.reshape(-1, neighbours.size(-1)))  # (B*N,E)
+        embeds = embeds.reshape(B, N, -1)  # (B,N,E)
 
         # Mask invalid neighbours
         mask = torch.any(neighbours != 0, dim=2)  # (B,N)
@@ -97,12 +96,10 @@ class QNetwork(nn.Module):
 
         # Select chosen neighbour’s embed + raw state
         chosen_embeds = embeds[torch.arange(B), actions]  # (B,E)
-        chosen_states = neighbours[torch.arange(B), actions]  # (B,5)
+        chosen_states = neighbours[torch.arange(B), actions]  # (B, NEIGHBOUR_SHAPE)
 
-        # Fusion: [cur_pos | chosen_embeds | pooled_embeds | chosen_states]
-        fc_input = torch.cat(
-            (cur_pos, chosen_embeds, pooled_embeds, chosen_states), dim=1
-        )
+        # Fusion: [chosen_embeds | pooled_embeds | chosen_states]
+        fc_input = torch.cat((chosen_embeds, pooled_embeds, chosen_states), dim=1)
         return self.fc(fc_input)
 
     def predict(self, states):
@@ -127,13 +124,13 @@ class QNetwork(nn.Module):
         )  # (B,N,S+1)
 
         # Flatten to batch
-        sa_pairs = sa_pairs.view(B * N, -1)
+        sa_pairs = sa_pairs.reshape(B * N, -1)
         with torch.no_grad():
             self.eval()
-            q_vals = self.forward(sa_pairs).view(B, N)  # (B,N)
+            q_vals = self.forward(sa_pairs).reshape(B, N)  # (B,N)
 
         # Mask invalid neighbours
-        neighbours = states[:, 3:].reshape(B, N, 5)
+        neighbours = states.reshape(B, N, NEIGHBOUR_SHAPE)
         mask = torch.any(neighbours != 0, dim=2)  # (B,N)
         q_vals[~mask] = -float("inf")
 
@@ -214,7 +211,7 @@ class Agent:
         self.lr = agent_config["train"]["lr"]
 
         self.q_eval = QNetwork(
-            ds_input_dims=8,
+            ds_input_dims=NEIGHBOUR_SHAPE,
             ds_fc1_dims=agent_config["dqn"]["deepset"]["fc1_dims"],
             ds_fc2_dims=agent_config["dqn"]["deepset"]["fc2_dims"],
             embed_dims=agent_config["dqn"]["deepset"]["embedding_dims"],
@@ -224,7 +221,7 @@ class Agent:
         ).to(DEVICE)
 
         self.q_target = QNetwork(
-            ds_input_dims=8,
+            ds_input_dims=NEIGHBOUR_SHAPE,
             ds_fc1_dims=agent_config["dqn"]["deepset"]["fc1_dims"],
             ds_fc2_dims=agent_config["dqn"]["deepset"]["fc2_dims"],
             embed_dims=agent_config["dqn"]["deepset"]["embedding_dims"],
@@ -255,7 +252,7 @@ class Agent:
             state_t = state.to(DEVICE, dtype=torch.float32)
 
         if rand < self.epsilon:
-            neighbour_states = state_t[3:].cpu().numpy().reshape(-1, 5)
+            neighbour_states = state_t.cpu().numpy().reshape(-1, NEIGHBOUR_SHAPE)
             valid_actions = np.where(np.any(neighbour_states != 0, axis=1))[0]
             action = int(np.random.choice(valid_actions))
         else:

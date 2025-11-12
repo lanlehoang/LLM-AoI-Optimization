@@ -1,7 +1,7 @@
 dqn:
   deepset:
-    fc1_dims: 64
-    fc2_dims: 128
+    fc1_dims: 32
+    fc2_dims: 64
     embedding_dims: 64
   final_fc_dims: 32
   dropout: 0.1
@@ -16,7 +16,7 @@ dqn:
 #   dropout: 0.1
 
 train:
-  epochs: 30
+  epochs: 50
   lr: 0.0005
   batch_size: 64
   gamma: 0.995

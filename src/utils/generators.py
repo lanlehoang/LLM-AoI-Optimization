@@ -11,7 +11,8 @@ def generate_satellite_positions(num_satellites, radius):
     Ouput shape: (num_satellites, 3)
     """
     theta = np.random.uniform(0, 2 * np.pi, num_satellites)
-    phi = np.random.uniform(0, np.pi / 2, num_satellites)  # Only consider the Northern hemisphere
+    # Only consider the Northern hemisphere
+    phi = np.random.uniform(0, np.pi / 2, num_satellites)
     return convert_polar_to_cartesian(theta, phi, radius)
 
 
@@ -41,7 +42,10 @@ def choose_start_end(satellite_positions):
         for j in range(i + 1, satellite_positions.shape[0]):
             angle = np.arccos(
                 np.dot(satellite_positions[i], satellite_positions[j])
-                / (np.linalg.norm(satellite_positions[i]) * np.linalg.norm(satellite_positions[j]))
+                / (
+                    np.linalg.norm(satellite_positions[i])
+                    * np.linalg.norm(satellite_positions[j])
+                )
             )
             if angle > 3 * np.pi / 4:  # 135 degrees in radians
                 return i, j
@@ -52,21 +56,21 @@ def choose_start_end(satellite_positions):
     raise ValueError(err_msg)
 
 
-def generate_all_packages(mu, simulation_time):
+def generate_all_packets(mu, simulation_time):
     """
-    Generate all packages at the start satellite with processing times based on the given mu.
+    Generate all packets at the start satellite with processing times based on the given mu.
     """
     time = generate_processing_time(mu)
-    package_times = []
+    packet_times = []
     while time < simulation_time:
         processing_time = generate_processing_time(mu)
-        package_times.append(time)
+        packet_times.append(time)
         time += processing_time
 
-    if not package_times:
+    if not packet_times:
         err_msg = (
-            f"No packages generated within the simulation time {simulation_time}. "
+            f"No packets generated within the simulation time {simulation_time}. "
             f"Consider increasing mu ({mu}) or simulation_time ({simulation_time})."
         )
         raise ValueError(err_msg)
-    return list(enumerate(package_times))
+    return list(enumerate(packet_times))
