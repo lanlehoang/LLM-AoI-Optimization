@@ -76,6 +76,13 @@ def find_neighbours(cur_idx, dst_pos, satellite_positions):
     return sorted_idx[:N_NEIGHBOURS].tolist()
 
 
+def compute_euclidean_distance(cur_pos, dst_pos):
+    """
+    Compute the Euclidean distance between two points in 3D space.
+    """
+    return np.linalg.norm(dst_pos - cur_pos).item()
+
+
 def compute_arc_length(cur_pos, dst_pos):
     """
     Compute the exact great-circle distance (arc length) between two points on a sphere.
@@ -97,4 +104,4 @@ def compute_arc_length(cur_pos, dst_pos):
     cos_gamma = np.clip(cos_gamma, -1.0, 1.0)
 
     arc_length = R_SATELLITE * np.arccos(cos_gamma)
-    return arc_length
+    return arc_length.item()

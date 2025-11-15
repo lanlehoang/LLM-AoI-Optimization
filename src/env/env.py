@@ -5,6 +5,7 @@ from src.utils.geometry import *
 from src.utils.get_config import get_system_config, get_agent_config
 from src.env.env_classes import *
 from src.utils.logger import get_logger
+from src.env.state_models import NeighbourState, EnvironmentState
 
 logger = get_logger(__name__)
 system_config = get_system_config()
@@ -126,7 +127,7 @@ class SatelliteEnv:
                 sat.busy_time > event_time
                 and sat.queue_length >= system_config["satellite"]["queue_limit"]
             ):
-                self.packages[package_id].drop()
+                self.packets[packet_id].drop()
                 reward = -agent_config["train"]["reward"]["drop_penalty"]
                 self.buffer.update_experience(
                     packet_id=packet_id,
@@ -136,8 +137,8 @@ class SatelliteEnv:
                         "done": True,  # Done packet, not done episode
                     },
                 )
-                logger.info(f"Package ID {package_id} dropped by satellite {src}.")
-                self.buffer.complete_experience(package_id=package_id)
+                logger.info(f"Packet ID {packet_id} dropped by satellite {src}.")
+                self.buffer.complete_experience(packet_id=packet_id)
             else:
                 # Start processing when the packet arrives and the satellite is ready
                 start_time = max(sat.busy_time, event_time)
@@ -177,7 +178,6 @@ class SatelliteEnv:
         # Current and destination positions
         cur_pos = self.satellite_positions[src]
         dst_pos = self.satellite_positions[self.end]
-        rel_pos = dst_pos - cur_pos
 
         # Find all neighbours
         neighbour_indices = find_neighbours(
@@ -189,18 +189,25 @@ class SatelliteEnv:
         n_neighbours = len(neighbours)
 
         # State of each neighbour
-        neighbour_states = np.array([])
+        neighbour_states = []
         for sat in neighbours:
-            rel_sat_pos = dst_pos - sat.position
-            neighbour_states = np.hstack(
-                [neighbour_states, rel_sat_pos, sat.processing_rate, sat.queue_length]
+            euc_dist = compute_euclidean_distance(cur_pos, sat.position)
+            arc_len = compute_arc_length(sat.position, dst_pos)
+            sat_state = NeighbourState(
+                distance=euc_dist,
+                arc_length=arc_len,
+                processing_rate=sat.processing_rate,
+                queue_length=sat.queue_length,
             )
+            neighbour_states.append(sat_state)
         n_neighbours_max = system_config["satellite"]["n_neighbours"]
-        paddings = np.zeros(5 * (n_neighbours_max - n_neighbours))
-        neighbour_states = np.hstack([neighbour_states, paddings])
+        paddings = [
+            NeighbourState(distance=0, arc_length=0, processing_rate=0, queue_length=0)
+        ] * (n_neighbours_max - n_neighbours)
+        neighbour_states.extend(paddings)
 
-        # Concatenate everything and flatten into an 1-d array
-        self.state = np.hstack([rel_pos, neighbour_states])
+        # Update the environment state
+        self.state = EnvironmentState(neighbours=neighbour_states).to_numpy()
 
         # Other variable updates
         self.time = event_time
@@ -275,8 +282,8 @@ class SatelliteEnv:
                 },
             )
             logger.info(
-                f"Package ID {self.cur_package} reached the destination. "
-                f"AoI: {arrival_time - self.packages[self.cur_package].generation_time:.4}"
+                f"Packet ID {self.cur_packet} reached the destination. "
+                f"AoI: {arrival_time - self.packets[self.cur_packet].generation_time:.4}"
             )
             self.buffer.complete_experience(packet_id=self.cur_packet)
 
