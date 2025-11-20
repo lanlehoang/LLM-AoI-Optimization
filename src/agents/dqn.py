@@ -289,3 +289,10 @@ class Agent:
             self.learn_step_counter += 1
             if self.learn_step_counter % self.target_update_interval == 0:
                 self.update_target_network()
+
+    def save_model(self, path):
+        torch.save(self.q_eval.state_dict(), path)
+
+    def load_model(self, path):
+        self.q_eval.load_state_dict(torch.load(path))
+        self.q_target.load_state_dict(torch.load(path))
