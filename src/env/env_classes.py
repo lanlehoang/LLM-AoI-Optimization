@@ -114,12 +114,12 @@ class Experience(TypedDict):
     action: Optional[int]
     reward: Optional[float]
     next_state: Optional[np.ndarray]
-    done: Optional[bool]
+    info: Optional[str]
 
 
 class ExperienceBuffer:
     """
-    Store incomplete experiences e = (s, a, r, s').
+    Store incomplete experiences e = (s, a, r, s', info).
     Necessary because s' IS NOT IMMEDIATELY AVAILABLE after taking action a.
     The next time the same packet is processed, we can update s' and push it out of the buffer.
     """
@@ -156,7 +156,7 @@ class ExperienceBuffer:
         else:
             raise KeyError(f"Packet ID {packet_id} not found in buffer.")
 
-    def get_all_complete_experiences(self):
+    def get_all_complete_experiences(self) -> List[Experience]:
         experiences = self.complete_experiences
         self.complete_experiences = []
         return experiences

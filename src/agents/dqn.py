@@ -119,9 +119,7 @@ class QNetwork(nn.Module):
         # Expand for all possible actions
         actions = torch.arange(N, device=states.device).repeat(B, 1)  # (B,N)
         states_rep = states.unsqueeze(1).repeat(1, N, 1)  # (B,N,S)
-        sa_pairs = torch.cat(
-            (states_rep, actions.unsqueeze(2).float()), dim=2
-        )  # (B,N,S+1)
+        sa_pairs = torch.cat((states_rep, actions.unsqueeze(2).float()), dim=2)  # (B,N,S+1)
 
         # Flatten to batch
         sa_pairs = sa_pairs.reshape(B * N, -1)
@@ -150,9 +148,7 @@ class QNetwork(nn.Module):
         for _ in range(epochs):
             self.optimizer.zero_grad()
             # Build (s,a) input
-            sa_pairs = torch.cat(
-                (states, actions.unsqueeze(1).float()), dim=1
-            )  # (B,S+1)
+            sa_pairs = torch.cat((states, actions.unsqueeze(1).float()), dim=1)  # (B,S+1)
             q_pred = self.forward(sa_pairs)  # (B,1)
             loss = self.loss_fn(q_pred, targets)
             loss.backward()
@@ -263,9 +259,7 @@ class Agent:
     def learn(self):
         if self.memory.mem_counter >= self.batch_size:
             # 1. Sample batch
-            states, actions_idx, rewards, new_states, not_done = (
-                self.memory.sample_buffer(self.batch_size)
-            )
+            states, actions_idx, rewards, new_states, not_done = self.memory.sample_buffer(self.batch_size)
 
             # 2. To device
             states = states.to(DEVICE).float()
@@ -276,9 +270,7 @@ class Agent:
 
             # 3. Target network for Q(s',a')
             with torch.no_grad():
-                q_next = (
-                    self.q_target.predict(new_states).max(dim=1, keepdim=True).values
-                )
+                q_next = self.q_target.predict(new_states).max(dim=1, keepdim=True).values
 
             q_target = rewards + self.gamma * q_next * not_done
 
@@ -296,3 +288,4 @@ class Agent:
     def load_model(self, path):
         self.q_eval.load_state_dict(torch.load(path))
         self.q_target.load_state_dict(torch.load(path))
+        self.epsilon = self.epsilon_min  # Set epsilon to min for evaluation

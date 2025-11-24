@@ -21,16 +21,10 @@ class NeighbourState(BaseModel):
 
     STATE_DIM: ClassVar[int] = 4  # distance, arc_length, processing_rate, queue_length
 
-    distance: float = Field(
-        ..., description="Euclidean distance to the current satellite"
-    )
-    arc_length: float = Field(
-        ..., description="Arc length to the destination satellite"
-    )
+    distance: float = Field(..., description="Euclidean distance to the current satellite")
+    arc_length: float = Field(..., description="Arc length to the destination satellite")
     processing_rate: float = Field(..., description="Average processing rate (mu)")
-    queue_length: int = Field(
-        ..., description="Current queue length of the neighbour satellite"
-    )
+    queue_length: int = Field(..., description="Current queue length of the neighbour satellite")
 
     def to_numpy(self) -> np.ndarray:
         """
