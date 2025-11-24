@@ -54,9 +54,7 @@ class GetPrompts:
         self.prompt_other_inf = "All inputs and outputs should be NumPy arrays."
 
     def _format_prompt_task(self, max_neighbours, sample_data):
-        return self.prompt_task.format(
-            max_neighbours=max_neighbours, sample_data=sample_data
-        )
+        return self.prompt_task.format(max_neighbours=max_neighbours, sample_data=sample_data)
 
     def get_task(self, max_neighbours, sample_data):
         return self._format_prompt_task(max_neighbours, sample_data)

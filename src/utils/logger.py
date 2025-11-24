@@ -12,9 +12,7 @@ LOGGING_CONFIG = {
     "disable_existing_loggers": False,  # let 3rd-party libs log too
     "formatters": {
         "standard": {"format": "[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s"},
-        "detailed": {
-            "format": "[%(asctime)s] [%(levelname)s] [%(name)s:%(lineno)d] %(message)s"
-        },
+        "detailed": {"format": "[%(asctime)s] [%(levelname)s] [%(name)s:%(lineno)d] %(message)s"},
     },
     "handlers": {
         "console": {

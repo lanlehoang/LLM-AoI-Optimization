@@ -55,11 +55,7 @@ def find_neighbours(cur_idx, dst_pos, satellite_positions):
     angle_limit = config["satellite"]["angle_limit"] * np.pi / 180.0
     # compute dot product for all (including self, which will be masked)
     dots = np.dot(neighbour_vectors, dst_vector)  # (N,)
-    forward = dots > (
-        np.linalg.norm(neighbour_vectors, axis=1)
-        * np.linalg.norm(dst_vector)
-        * np.cos(angle_limit)
-    )
+    forward = dots > (np.linalg.norm(neighbour_vectors, axis=1) * np.linalg.norm(dst_vector) * np.cos(angle_limit))
     forward = forward & mask_not_self
 
     # Combined filter
@@ -97,9 +93,7 @@ def compute_arc_length(cur_pos, dst_pos):
     theta2, phi2 = polar_coords[1]
 
     # Spherical law of cosines
-    cos_gamma = np.sin(phi1) * np.sin(phi2) + np.cos(phi1) * np.cos(phi2) * np.cos(
-        theta2 - theta1
-    )
+    cos_gamma = np.sin(phi1) * np.sin(phi2) + np.cos(phi1) * np.cos(phi2) * np.cos(theta2 - theta1)
     # Numerical stability
     cos_gamma = np.clip(cos_gamma, -1.0, 1.0)
 

@@ -42,10 +42,7 @@ def choose_start_end(satellite_positions):
         for j in range(i + 1, satellite_positions.shape[0]):
             angle = np.arccos(
                 np.dot(satellite_positions[i], satellite_positions[j])
-                / (
-                    np.linalg.norm(satellite_positions[i])
-                    * np.linalg.norm(satellite_positions[j])
-                )
+                / (np.linalg.norm(satellite_positions[i]) * np.linalg.norm(satellite_positions[j]))
             )
             if angle > 3 * np.pi / 4:  # 135 degrees in radians
                 return i, j

@@ -18,9 +18,6 @@ class SatelliteRouting:
 
         # with open("./instances.pkl" , 'rb') as f:
         #     self.instance_data = pickle.load(f)
-        self.ndelay = 1
-        self.problem_size = 50
-        self.neighbor_size = np.minimum(50, self.problem_size)
         self.n_instance = 8
         self.running_time = 10
 
