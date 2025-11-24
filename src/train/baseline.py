@@ -29,15 +29,19 @@ def main():
 
     logger.info("Initializing the agent")
     agent = Agent(input_dims=ENVIRONMENT_SHAPE)
-    steps = 0  # Count steps to decay epsilon
+    steps = 0  # Count steps to decay epsilon and train the agent
     decay_interval = agent_config["train"]["epsilon"]["decay_interval"]
 
     aois = []  # AoI
     dropped_ratios = []
 
     logger.info("Training the agent")
-    for i in range(agent_config["train"]["epochs"]):
-        logger.info(f"\n\n---Episode {i + 1} begins---")
+    N_EPOCHS = agent_config["train"]["epochs"]
+    TRAIN_INTERVAL = agent_config["train"].get("train_interval", 1)
+    N_EPOCHS_FREEZE = agent_config["train"].get("epochs_freeze", 0)
+
+    for i in range(1, N_EPOCHS + 1):
+        logger.info(f"\n\n---Episode {i} begins---")
         logger.info(f"Epsilon: {agent.epsilon:.3}")
         env.reset()
         episode_done = False
@@ -54,7 +58,14 @@ def main():
                 done = True if info else False  # Packet is done if info is not None
                 agent.remember(state, action, reward, next_state, done)
             # TODO: Combine experiences and Q-values logging to save data samples
-            agent.learn()
+            # Train the agent
+            if i < N_EPOCHS - N_EPOCHS_FREEZE:
+                if i % TRAIN_INTERVAL == 0: # Train only at specified intervals
+                    agent.learn()
+            else:
+                # Only run evaluation
+                # TODO: Implement a sample collecting method for the agent
+                pass
             action, _, _ = agent.choose_action(env.state)
             episode_done, episode_info = env.step(action)
 
@@ -63,11 +74,11 @@ def main():
             if steps == 0:
                 agent.decay_epsilon()
 
-        logger.info(f"Average AoI of episode {i + 1}: {episode_info['average_aoi']:.4f}")
+        logger.info(f"Average AoI of episode {i}: {episode_info['average_aoi']:.4f}")
         aois.append(episode_info["average_aoi"])
-        logger.info(f"Dropped ratio of episode {i + 1}: {episode_info['dropped_ratio']:.4f}")
+        logger.info(f"Dropped ratio of episode {i}: {episode_info['dropped_ratio']:.4f}")
         dropped_ratios.append(episode_info["dropped_ratio"])
-        logger.info(f"---Episode {i + 1} ends---")
+        logger.info(f"---Episode {i} ends---")
 
     logger.info(f"AoI: {[aoi.item() for aoi in np.round(aois, 4)]}")
     logger.info(f"Dropped ratios: {[r.item() for r in np.round(dropped_ratios, 4)]}")

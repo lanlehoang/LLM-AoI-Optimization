@@ -17,6 +17,8 @@ dqn:
 
 train:
   epochs: 50
+  epochs_freeze: 3  # Stop learning, only collect experience and run evaluation
+  train_interval: 1  # Train every n episodes
   lr: 0.0005
   batch_size: 64
   gamma: 0.995
