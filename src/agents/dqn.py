@@ -5,6 +5,7 @@ import numpy as np
 from src.utils.get_config import get_agent_config, get_system_config
 from src.utils.logger import get_logger
 from src.env.state_models import NeighbourState, EnvironmentState
+import pandas as pd
 
 agent_config = get_agent_config()
 system_config = get_system_config()
@@ -204,6 +205,17 @@ class Agent:
         self.epsilon_min = agent_config["train"]["epsilon"]["min"]
         self.batch_size = agent_config["train"]["batch_size"]
         self.memory = ReplayBuffer(mem_size, input_dims)
+        # Data samples for LLM prompt
+        self.data_samples = {
+            "dropped": [],
+            "arrived": [],
+            None: [],
+        }  # Collect data samples for all 3 cases
+        self.num_examples = {
+            "dropped": 10,
+            "arrived": 10,
+            None: 30,  # Most common case
+        }
         self.lr = agent_config["train"]["lr"]
 
         self.q_eval = QNetwork(
@@ -240,6 +252,14 @@ class Agent:
         if self.epsilon > self.epsilon_min:
             self.epsilon = max(self.epsilon * self.epsilon_dec, self.epsilon_min)
 
+    def _predict_q_values(self, state):
+        if not isinstance(state, torch.Tensor):
+            state_t = torch.tensor(state, dtype=torch.float32, device=DEVICE)
+        else:
+            state_t = state.to(DEVICE, dtype=torch.float32)
+        q_values = self.q_eval.predict(state_t)
+        return q_values
+
     def choose_action(self, state):
         rand = np.random.random()
         if not isinstance(state, torch.Tensor):
@@ -252,9 +272,29 @@ class Agent:
             valid_actions = np.where(np.any(neighbour_states != 0, axis=1))[0]
             action = int(np.random.choice(valid_actions))
         else:
-            q_values = self.q_eval.predict(state_t)
+            q_values = self._predict_q_values(state_t)
             action = int(torch.argmax(q_values).item())
-        return action, state, q_values  # Return state and Q values for logging
+        return action
+
+    def store_sample(self, state, action, reward, info):
+        """
+        Store different types of events (dropped, arrived, None) as examples for LLM prompt
+        Information to store:
+        - state: the environment state when the event occurred
+        - q_values: the Q-values predicted at that state (when the agent is freezed)
+        - action: the action taken
+        - reward: the actual reward received
+        """
+        if len(self.data_samples[info]) < self.num_examples[info]:
+            q_values = self._predict_q_values(state).cpu().numpy().tolist()
+            self.data_samples[info].append(
+                {
+                    "state": state,
+                    "q_values": q_values,
+                    "action": action,
+                    "reward": reward,
+                }
+            )
 
     def learn(self):
         if self.memory.mem_counter >= self.batch_size:
@@ -278,8 +318,8 @@ class Agent:
             _ = self.q_eval.fit(states, actions_idx, q_target)
 
             # 5. Target network sync
-            self.learn_step_counter += 1
-            if self.learn_step_counter % self.target_update_interval == 0:
+            self.learn_step_counter = (self.learn_step_counter + 1) % self.target_update_interval
+            if self.learn_step_counter == 0:
                 self.update_target_network()
 
     def save_model(self, path):
@@ -289,3 +329,32 @@ class Agent:
         self.q_eval.load_state_dict(torch.load(path))
         self.q_target.load_state_dict(torch.load(path))
         self.epsilon = self.epsilon_min  # Set epsilon to min for evaluation
+
+    def write_samples(self, filepath):
+        """
+        Write data samples to an xlsx file for easier analysis.
+        """
+        states = []
+        q_values = []
+        actions = []
+        rewards = []
+        info_types = []
+
+        for info_type, samples in self.data_samples.items():
+            for sample in samples:
+                states.append(sample["state"])
+                q_values.append(sample["q_values"])
+                actions.append(sample["action"])
+                rewards.append(sample["reward"])
+                info_types.append(info_type)
+
+        df = pd.DataFrame(
+            {
+                "info_type": info_types,
+                "state": states,
+                "q_values": q_values,
+                "action": actions,
+                "reward": rewards,
+            }
+        )
+        df.to_csv(filepath, index=False)

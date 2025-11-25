@@ -57,16 +57,14 @@ def main():
                 info = experience.get("info")
                 done = True if info else False  # Packet is done if info is not None
                 agent.remember(state, action, reward, next_state, done)
-            # TODO: Combine experiences and Q-values logging to save data samples
-            # Train the agent
-            if i < N_EPOCHS - N_EPOCHS_FREEZE:
-                if i % TRAIN_INTERVAL == 0: # Train only at specified intervals
-                    agent.learn()
-            else:
-                # Only run evaluation
-                # TODO: Implement a sample collecting method for the agent
-                pass
-            action, _, _ = agent.choose_action(env.state)
+                # Store samples only when in the freeze period
+                if i >= N_EPOCHS - N_EPOCHS_FREEZE:
+                    agent.store_sample(state, action, reward, info)
+
+            # Train the agent only at specified intervals
+            if i < N_EPOCHS - N_EPOCHS_FREEZE and i % TRAIN_INTERVAL == 0:
+                agent.learn()
+            action = agent.choose_action(env.state)
             episode_done, episode_info = env.step(action)
 
             # Epsilon decay
@@ -86,19 +84,27 @@ def main():
 
     # Save the model
     os.makedirs(MODEL_DIR, exist_ok=True)
-    MODEL_PATH = f"{MODEL_DIR}/dqn_{datetime.now().strftime("%Y-%m-%d")}.pth"
+    MODEL_PATH = f"{MODEL_DIR}/dqn_baseline.pth"
     agent.save_model(MODEL_PATH)
     logger.info(f"Model saved to {MODEL_PATH}")
 
     # Save the results
     os.makedirs(DATA_DIR, exist_ok=True)
-    DATA_PATH = f"{DATA_DIR}/dqn_results_{datetime.now().strftime("%Y-%m-%d")}.csv"
-    df = pd.DataFrame({
-        "AoI": [aoi.item() for aoi in np.round(aois, 4)],
-        "Dropped_Ratio": [r.item() for r in np.round(dropped_ratios, 4)],
-    })
+    DATA_PATH = f"{DATA_DIR}/dqn_results_{datetime.now().strftime('%Y%m%d')}.csv"
+    df = pd.DataFrame(
+        {
+            "AoI": [aoi.item() for aoi in np.round(aois, 4)],
+            "Dropped_Ratio": [r.item() for r in np.round(dropped_ratios, 4)],
+        }
+    )
     df.to_csv(DATA_PATH, index=False)
     logger.info(f"Results saved to {DATA_PATH}")
+
+    # Save data samples for LLM prompt
+    SAMPLE_PATH = f"{DATA_DIR}/dqn_data_samples_{datetime.now().strftime('%Y%m%d')}.xlsx"
+    agent.write_samples(SAMPLE_PATH)
+    logger.info(f"Data samples saved to {SAMPLE_PATH}")
+
 
 if __name__ == "__main__":
     main()

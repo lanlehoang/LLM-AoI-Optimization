@@ -16,18 +16,18 @@ dqn:
 #   dropout: 0.1
 
 train:
-  epochs: 50
-  epochs_freeze: 3  # Stop learning, only collect experience and run evaluation
-  train_interval: 1  # Train every n episodes
+  epochs: 100
+  epochs_freeze: 10  # Stop learning, only collect experience and run evaluation
+  train_interval: 10  # Train every n episodes
   lr: 0.0005
   batch_size: 64
   gamma: 0.995
   epsilon:
     init: 1.0
     min: 0.005
-    decay: 0.997
-    decay_interval: 50  # Steps per epsilon decay
+    decay: 0.9975
+    decay_interval: 100  # Steps per epsilon decay
   reward:
     alpha: 0.25
-    arrival_bonus: 1.0
-    drop_penalty: 1.0
+    arrival_bonus: 0.5
+    drop_penalty: 0.5
