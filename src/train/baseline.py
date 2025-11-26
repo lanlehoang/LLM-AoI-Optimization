@@ -101,7 +101,7 @@ def main():
     logger.info(f"Results saved to {DATA_PATH}")
 
     # Save data samples for LLM prompt
-    SAMPLE_PATH = f"{DATA_DIR}/dqn_data_samples_{datetime.now().strftime('%Y%m%d')}.xlsx"
+    SAMPLE_PATH = f"{DATA_DIR}/dqn_data_samples_{datetime.now().strftime('%Y%m%d')}.csv"
     agent.write_samples(SAMPLE_PATH)
     logger.info(f"Data samples saved to {SAMPLE_PATH}")
 

@@ -1,7 +1,10 @@
 class GetPrompts:
     def __init__(self):
         self.prompt_task = """
-        You are improving a Reinforcement Learning agent for satellite packet routing by computing Q-value offsets.
+        You are improving a Reinforcement Learning agent for satellite packet routing.
+        You'll be given the problem description and data samples from the agent's experience.
+        Based on the given information, design a function to compute offset values that adjust the agent's Q-values for better routing decisions.
+        Your offset values will be added to the agent's Q-values to produce the final action selection.
 
         ENVIRONMENT:
         - Multiple satellites form a network, each modeled as an M/M/1/c queue (Poisson arrivals, exponential service, finite capacity c)
@@ -15,7 +18,8 @@ class GetPrompts:
         2. arc_length: Great circle distance from neighbour to destination (km)
         3. processing_rate: Service rate μ in M/M/1/c model (packets/second)
         4. queue_length: Current number of packets waiting in queue (0 to capacity c)
-        The full state is the concatenation of all neighbour features (np.concatenate([sat1, sat2, ...])).
+        The possible actions are the indices of the selectable neighbours, each has a Q-value estimated by the agent.
+        If there are fewer than {max_neighbours} neighbours, missing neighbours are zero-padded and corresponding Q-values are masked with -np.inf
 
         YOUR TASK:
         Design function to compute offset values added to agent's Q-values.
@@ -30,12 +34,22 @@ class GetPrompts:
         - Distance impacts propagation delay (at the speed of light)
         - Offsets should refine (not overpower) the learned Q-values; respect the scale observed in the examples.
 
-        NOTE: 
-        - If there are fewer than {max_neighbours} neighbours: Missing neighbours features are zero-padded and corresponding Q-values are masked with -np.inf
-        - Info in data samples provides the packet outcomes after routing decisions:
-            * 'dropped': the packet was dropped
-            * 'arrived': the packet reached the destination
-            * None otherwise
+        DATA FORMAT LEGEND:
+        Each line represents one sample, containing state arrays and contextual information.
+        Arrays corresponding to the {max_neighbours} neighbours:
+        - D: Distances (km)
+        - A: Arc Lengths (km)
+        - P: Processing Rates (pkts/sec)
+        - Q: Queue Lengths (pkts)
+        
+        Contextual info per sample:
+        - QV: Array of base Q-Values (from agent)
+        - Act: Selected Action Index
+        - R: Reward received after action
+        - Info: The packet outcomes after routing decisions:
+            * 'dropped': dropped
+            * 'arrived': arrived
+            * None otherwise (still in an intermediate satellite)
 
         DATA SAMPLES:
         {sample_data}
@@ -73,8 +87,3 @@ class GetPrompts:
 
     def get_other_inf(self):
         return self.prompt_other_inf
-
-
-if __name__ == "__main__":
-    getprompts = GetPrompts()
-    print(getprompts.get_task())

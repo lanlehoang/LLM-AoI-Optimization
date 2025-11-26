@@ -211,11 +211,7 @@ class Agent:
             "arrived": [],
             None: [],
         }  # Collect data samples for all 3 cases
-        self.num_examples = {
-            "dropped": 10,
-            "arrived": 10,
-            None: 30,  # Most common case
-        }
+        self.max_examples_per_type = 100
         self.lr = agent_config["train"]["lr"]
 
         self.q_eval = QNetwork(
@@ -285,7 +281,7 @@ class Agent:
         - action: the action taken
         - reward: the actual reward received
         """
-        if len(self.data_samples[info]) < self.num_examples[info]:
+        if len(self.data_samples[info]) < self.max_examples_per_type:
             q_values = self._predict_q_values(state).cpu().numpy().tolist()
             self.data_samples[info].append(
                 {
