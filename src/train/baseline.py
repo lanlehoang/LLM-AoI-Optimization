@@ -84,7 +84,7 @@ def main():
 
     # Save the model
     os.makedirs(MODEL_DIR, exist_ok=True)
-    MODEL_PATH = f"{MODEL_DIR}/dqn_baseline.pth"
+    MODEL_PATH = f"{MODEL_DIR}/dqn_baseline_{datetime.now().strftime('%Y%m%d')}.pth"
     agent.save_model(MODEL_PATH)
     logger.info(f"Model saved to {MODEL_PATH}")
 

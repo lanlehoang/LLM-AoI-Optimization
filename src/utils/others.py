@@ -7,6 +7,8 @@ def generate_prompt_data(csv_path, num_arrived=10, num_dropped=10, num_none=10):
     Read data samples from CSV and format them for prompt inclusion.
     """
     df = pd.read_csv(csv_path)
+    df["state_hash"] = df["state"].apply(lambda s: hash(str(s)))
+    df = df.drop_duplicates(subset=["state_hash"])  # Prevent duplicate states
     df["info_type"] = df["info_type"].fillna("None").astype(str)
 
     def parse_float_array(s):

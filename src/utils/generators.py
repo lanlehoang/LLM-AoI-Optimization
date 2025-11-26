@@ -11,8 +11,8 @@ def generate_satellite_positions(num_satellites, radius):
     Ouput shape: (num_satellites, 3)
     """
     theta = np.random.uniform(0, 2 * np.pi, num_satellites)
-    # Only consider the Northern hemisphere
-    phi = np.random.uniform(0, np.pi / 2, num_satellites)
+    z = np.random.uniform(0, 1, num_satellites)  # cos(phi)
+    phi = np.arccos(z)
     return convert_polar_to_cartesian(theta, phi, radius)
 
 
