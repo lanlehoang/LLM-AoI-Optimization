@@ -1,4 +1,3 @@
-from enum import Enum
 import numpy as np
 from src.utils.generators import *
 from src.utils.geometry import *
@@ -18,7 +17,6 @@ class SatelliteEnv:
     """
 
     def __init__(self):
-        super().__init__()
         self.n_satellites = system_config["satellite"]["n_satellites"]
         self.radius = (
             system_config["physics"]["r_earth"] + system_config["satellite"]["height"]
