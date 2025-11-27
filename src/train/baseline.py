@@ -72,9 +72,9 @@ def main():
             if steps == 0:
                 agent.decay_epsilon()
 
-        logger.info(f"Average AoI of episode {i}: {episode_info['average_aoi']:.4f}")
+        logger.info(f"Average AoI of episode {i}: {episode_info['average_aoi']:.3f}")
         aois.append(episode_info["average_aoi"])
-        logger.info(f"Dropped ratio of episode {i}: {episode_info['dropped_ratio']:.4f}")
+        logger.info(f"Dropped ratio of episode {i}: {episode_info['dropped_ratio']:.3f}")
         dropped_ratios.append(episode_info["dropped_ratio"])
         logger.info(f"---Episode {i} ends---")
 

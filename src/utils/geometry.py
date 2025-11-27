@@ -58,7 +58,7 @@ def find_neighbours(cur_idx, dst_pos, satellite_positions):
     candidate_indices = np.where(candidate_mask)[0]
 
     if candidate_indices.size == 0:
-        return []
+        raise ValueError("No valid neighbours found. Increase environment configurations.")
 
     sorted_idx = candidate_indices[np.argsort(distances[candidate_indices])]
     return sorted_idx[:N_NEIGHBOURS].tolist()
@@ -79,7 +79,7 @@ def compute_arc_length(cur_pos, dst_pos):
     cur_pos = np.asarray(cur_pos)
     dst_pos = np.asarray(dst_pos)
 
-    if np.allclose(cur_pos, dst_pos, atol=1e-6):
+    if np.allclose(cur_pos, dst_pos, atol=1e-9):
         return 0.0
 
     cos_gamma = np.dot(cur_pos, dst_pos) / (np.linalg.norm(cur_pos) * np.linalg.norm(dst_pos))

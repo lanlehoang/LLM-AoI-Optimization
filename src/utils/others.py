@@ -55,7 +55,7 @@ def generate_prompt_data(csv_path, num_arrived=10, num_dropped=10, num_none=10):
         return "[" + ",".join(str(int(x)) for x in arr) + "]"
 
     def format_q(arr):
-        return "[" + ",".join(f"{x:.4f}" for x in arr) + "]"
+        return "[" + ",".join(f"{x:.3f}" for x in arr) + "]"
 
     for i, row in out.iterrows():
         state = parse_float_array(row["state"])
@@ -66,7 +66,7 @@ def generate_prompt_data(csv_path, num_arrived=10, num_dropped=10, num_none=10):
             f"D:{format_int(dis)} A:{format_int(arc)} P:{format_int(process)} Q:{format_int(queue)} | "
             f"QV:{format_q(qvals)} | "
             f"Act:{int(row['action'])} | "
-            f"R:{row['reward']:.4f} | "
+            f"R:{row['reward']:.3f} | "
             f"Info:{row['info_type']}"
         )
         lines.append(line)

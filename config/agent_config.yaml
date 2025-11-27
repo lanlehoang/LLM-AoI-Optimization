@@ -24,8 +24,8 @@ train:
   gamma: 0.995
   epsilon:
     init: 1.0
-    min: 0.005
-    decay: 0.9975
+    min: 0.001
+    decay: 0.996
     decay_interval: 100  # Steps per epsilon decay
   reward:
     alpha: 0.25
