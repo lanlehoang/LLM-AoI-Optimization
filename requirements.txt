@@ -4,3 +4,4 @@ gym # Reinforcement learning library
 numpy # Numerical operations
 pandas # Data manipulation and analysis
 litellm # Lightweight LLM library
+joblib # Running tasks in parallel
