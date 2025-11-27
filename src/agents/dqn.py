@@ -195,7 +195,7 @@ class ReplayBuffer(object):
 
 
 class Agent:
-    def __init__(self, input_dims, mem_size=2048, target_update_interval=10):
+    def __init__(self, input_dims=ENVIRONMENT_SHAPE, mem_size=2048, target_update_interval=10):
         logger.info(f"Initializing DQN Agent with device: {DEVICE}")
         n_actions = system_config["satellite"]["n_neighbours"]
         self.action_space = np.arange(n_actions)
@@ -270,6 +270,27 @@ class Agent:
         else:
             q_values = self._predict_q_values(state_t)
             action = int(torch.argmax(q_values).item())
+        return action
+
+    def choose_action_with_offset(self, state, q_offset: np.ndarray):
+        """
+        Choose action with Q-value offset computed by LLMs.
+        q_offset: float value to add to Q-values before selecting action.
+        """
+        rand = np.random.random()
+        if not isinstance(state, torch.Tensor):
+            state_t = torch.tensor(state, dtype=torch.float32, device=DEVICE)
+        else:
+            state_t = state.to(DEVICE, dtype=torch.float32)
+
+        if rand < self.epsilon:
+            neighbour_states = state_t.cpu().numpy().reshape(-1, NEIGHBOUR_SHAPE)
+            valid_actions = np.where(np.any(neighbour_states != 0, axis=1))[0]
+            action = int(np.random.choice(valid_actions))
+        else:
+            q_values = self._predict_q_values(state_t).cpu().numpy()
+            q_values += q_offset
+            action = int(np.argmax(q_values).item())
         return action
 
     def store_sample(self, state, action, reward, info):

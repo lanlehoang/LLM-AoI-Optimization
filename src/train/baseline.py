@@ -28,7 +28,7 @@ def main():
     env = SatelliteEnv()
 
     logger.info("Initializing the agent")
-    agent = Agent(input_dims=ENVIRONMENT_SHAPE)
+    agent = Agent()
     steps = 0  # Count steps to decay epsilon and train the agent
     decay_interval = agent_config["train"]["epsilon"]["decay_interval"]
 

@@ -1,5 +1,17 @@
 import pandas as pd
 import numpy as np
+from typing import List
+
+
+def state_to_arrays(state: np.ndarray) -> List[np.ndarray]:
+    """
+    Convert state to 4 feature arrays
+    """
+    dis = state[0::4].astype(int)
+    arc = state[1::4].astype(int)
+    process_rate = state[2::4].astype(int)
+    queue = state[3::4].astype(int)
+    return [dis, arc, process_rate, queue]
 
 
 def generate_prompt_data(csv_path, num_arrived=10, num_dropped=10, num_none=10):
@@ -37,27 +49,21 @@ def generate_prompt_data(csv_path, num_arrived=10, num_dropped=10, num_none=10):
         return "Error: no samples found."
 
     out = pd.concat(sampled).sample(frac=1, random_state=42).reset_index(drop=True)
-
     lines = []
+
+    def format_int(arr):
+        return "[" + ",".join(str(int(x)) for x in arr) + "]"
+
+    def format_q(arr):
+        return "[" + ",".join(f"{x:.4f}" for x in arr) + "]"
 
     for i, row in out.iterrows():
         state = parse_float_array(row["state"])
         qvals = parse_float_array(row["q_values"])
-
-        D = state[0::4].astype(int)
-        A = state[1::4].astype(int)
-        P = state[2::4].astype(int)
-        Q = state[3::4].astype(int)
-
-        def format_int(arr):
-            return "[" + ",".join(str(int(x)) for x in arr) + "]"
-
-        def format_q(arr):
-            return "[" + ",".join(f"{x:.4f}" for x in arr) + "]"
-
+        dis, arc, process, queue = state_to_arrays(state)
         line = (
             f"#{i+1} | "
-            f"D:{format_int(D)} A:{format_int(A)} P:{format_int(P)} Q:{format_int(Q)} | "
+            f"D:{format_int(dis)} A:{format_int(arc)} P:{format_int(process)} Q:{format_int(queue)} | "
             f"QV:{format_q(qvals)} | "
             f"Act:{int(row['action'])} | "
             f"R:{row['reward']:.4f} | "
