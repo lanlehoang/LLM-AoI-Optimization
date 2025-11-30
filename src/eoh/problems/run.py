@@ -4,44 +4,69 @@ from src.utils.get_config import get_system_config
 from src.utils.generators import RANDOM_SEED
 from src.utils.others import state_to_arrays
 from src.env.env import SatelliteEnv
+from .prompts import GetPrompts
+from src.utils.logger import get_logger
 
+logger = get_logger(__name__)
 N_NEIGHBOURS = get_system_config()["satellite"]["n_neighbours"]
 
 
 class SatelliteRouting:
     def __init__(self, model_path) -> None:
-        self.n_instance = 10
+        self.n_instance = 4
         self.agent = Agent()
         self.agent.load_model(model_path)
+        self.prompts = GetPrompts()
 
     def evaluate(self, code_string):
+        # Execute LLM-generated code ONCE before loop
+        try:
+            namespace = {"np": np, "numpy": np}
+            exec(code_string, namespace)
+
+            if "compute_offset" not in namespace:
+                logger.error("compute_offset function not found in generated code")
+                return None
+            compute_offset = namespace["compute_offset"]
+
+        except Exception as e:
+            logger.error(f"Error executing generated code: {e}")
+            return None
+
         # Initialize environment and run simulations
         np.random.seed(RANDOM_SEED)
         env = SatelliteEnv()
 
         aois = []
         dropped_ratios = []
+
         for _ in range(self.n_instance):
             env.reset()
             episode_done = False
+
             while not episode_done:
                 env.handle_events()
                 dis, arc, process, queue = state_to_arrays(env.state)
-                # Execute LLM-generated code to compute offsets
+
+                # Call the offset function
                 try:
-                    namespace = {"np": np, "numpy": np}
-                    exec(code_string, namespace)
-                    # Check if function exists
-                    if "compute_offset" not in namespace:
-                        return None
-                    compute_offset = namespace["compute_offset"]
                     q_offset = compute_offset(dis, arc, process, queue)
+
+                    # Validate offset
+                    if not isinstance(q_offset, np.ndarray):
+                        q_offset = np.array(q_offset)
+
+                    if q_offset.shape != (N_NEIGHBOURS,):
+                        logger.error(f"offset shape {q_offset.shape} != expected ({N_NEIGHBOURS},)")
+                        return None
+
                 except Exception as e:
-                    # Code failed to execute or runtime error
+                    logger.error(f"Error calling compute_offset: {e}")
                     return None
 
                 action = self.agent.choose_action_with_offset(env.state, q_offset)
                 episode_done, episode_info = env.step(action)
+
             # Get metrics
             aois.append(episode_info["average_aoi"])
             dropped_ratios.append(episode_info["dropped_ratio"])
@@ -51,3 +76,31 @@ class SatelliteRouting:
 
         fitness = (1 - avg_dropped_ratio) / avg_aoi if avg_dropped_ratio < 0.1 else 0
         return fitness
+
+
+# Run a quick test
+if __name__ == "__main__":
+    from pathlib import Path
+    import textwrap
+    import time
+
+    BASE_PATH = Path.resolve(Path(__file__)).parent.parent.parent.parent
+    model_path = BASE_PATH / "models" / "dqn_baseline_20251127.pth"
+    problem = SatelliteRouting(model_path)
+
+    # Example code string
+    test_code = textwrap.dedent(
+        """
+    import numpy as np
+    def compute_offset(distances, arc_lengths, processing_rates, queue_lengths):
+        v_light = 3 * 10**5  # km/s
+        return -0.025 * queue_lengths + 0.005 * processing_rates - (arc_lengths + distances) / v_light
+    """
+    )
+
+    start = time.time()
+    fitness = problem.evaluate(test_code)
+    end = time.time()
+
+    print(f"Evaluation time: {end - start:.4f} seconds")
+    print(f"Fitness of the test code: {fitness:.4f}")

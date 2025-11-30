@@ -49,7 +49,7 @@ class GetPrompts:
         Design function computing offset values added to agent's Q-values.
         - Input: 4 arrays of length {max_neighbours}, one per feature
         - Output: offset array of length {max_neighbours}
-        - Routing decision: argmax(Q_agent + offset)
+        - Routing decision: argmax(Q_agent + Q_offset)
 
         REASONING GUIDELINES:
         - High queue_length → congestion/drop risk → negative offset
@@ -66,17 +66,19 @@ class GetPrompts:
             "processing_rates",
             "queue_lengths",
         ]
-        self.prompt_func_outputs = ["offset_values"]
-        self.prompt_inout_inf = "'distances', 'arc_lengths', 'processing_rates', 'queue_lengths', and 'offset_values' are arrays of shape ({max_neighbours},)."
+        self.prompt_func_outputs = ["offsets"]
+        self.prompt_inout_inf = (
+            "'distances', 'arc_lengths', 'processing_rates', 'queue_lengths', and 'offsets' are of the same shape."
+        )
         self.prompt_other_inf = "All inputs and outputs should be NumPy arrays."
 
-    def _format_prompt_task(self):
-        n_samples = {"num_dropped": 2, "num_arrived": 1, "num_none": 2}
-        data_samples = generate_prompt_data(csv_path=DATA_SAMPLE_PATH, **n_samples)
+    def _format_prompt_task(self, data_path):
+        N_SAMPLES = {"num_dropped": 2, "num_arrived": 1, "num_none": 2}
+        data_samples = generate_prompt_data(csv_path=data_path, **N_SAMPLES)
         return self.prompt_task.format(max_neighbours=MAX_NEIGHBOURS, data_samples=data_samples)
 
-    def get_task(self):
-        return self._format_prompt_task()
+    def get_task(self, data_path=DATA_SAMPLE_PATH):
+        return self._format_prompt_task(data_path)
 
     def get_func_name(self):
         return self.prompt_func_name
@@ -99,5 +101,6 @@ if __name__ == "__main__":
     task_prompt = getprompts.get_task()
     print(task_prompt)
 
+    # Calculate number of tokens
     enc = tiktoken.encoding_for_model("gpt-4o-mini")
-    print(f"\n\n Number of tokens: {len(enc.encode(task_prompt))}")
+    print(f"\nNumber of tokens in task prompt: {len(enc.encode(task_prompt))}")

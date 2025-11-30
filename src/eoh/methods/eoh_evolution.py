@@ -1,12 +1,17 @@
 import re
-import time
 from ..llm.interface_llm import InterfaceLLM
 
 
 class Evolution:
-    def __init__(self, api_endpoint, api_key, model_LLM, llm_use_local, llm_local_url, debug_mode, prompts, **kwargs):
+    def __init__(self, api_endpoint, api_key, model_llm, llm_use_local, llm_local_url, debug_mode, prompts, **kwargs):
         # Set prompt interface
-        self.prompt_task = prompts.get_task()
+        # Format prompt task
+        data_path = kwargs.get("data_path", None)
+        if data_path:
+            self.prompt_task = prompts.get_task(data_path)
+        else:
+            self.prompt_task = prompts.get_task()  # Use default data path
+
         self.prompt_func_name = prompts.get_func_name()
         self.prompt_func_inputs = prompts.get_func_inputs()
         self.prompt_func_outputs = prompts.get_func_outputs()
@@ -26,13 +31,13 @@ class Evolution:
         # Set LLMs
         self.api_endpoint = api_endpoint
         self.api_key = api_key
-        self.model_LLM = model_LLM
+        self.model_llm = model_llm
         self.debug_mode = debug_mode
 
         self.interface_llm = InterfaceLLM(
             self.api_endpoint,
             self.api_key,
-            self.model_LLM,
+            self.model_llm,
             llm_use_local,
             llm_local_url,
             self.debug_mode,

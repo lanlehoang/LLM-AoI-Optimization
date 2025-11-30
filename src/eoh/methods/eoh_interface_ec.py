@@ -1,292 +1,175 @@
 import re
-from ..llm.interface_llm import InterfaceLLM
+import time
+import warnings
+import concurrent.futures
+
+import numpy as np
+from joblib import Parallel, delayed
+
+from .eoh_evolution import Evolution
+from .evaluator_accelerate import add_numba_decorator
 
 
-class Evolution:
-    def __init__(self, api_endpoint, api_key, model_LLM, llm_use_local, llm_local_url, debug_mode, prompts, **kwargs):
-        # Set prompt interface
-        self.prompt_task = prompts.get_task()
-        self.prompt_func_name = prompts.get_func_name()
-        self.prompt_func_inputs = prompts.get_func_inputs()
-        self.prompt_func_outputs = prompts.get_func_outputs()
-        self.prompt_inout_inf = prompts.get_inout_inf()
-        self.prompt_other_inf = prompts.get_other_inf()
+class InterfaceEC:
+    def __init__(
+        self,
+        pop_size,
+        m,
+        api_endpoint,
+        api_key,
+        llm_model,
+        llm_use_local,
+        llm_local_url,
+        debug_mode,
+        interface_prob,
+        n_p,
+        timeout,
+        use_numba,
+        **kwargs,
+    ):
+        self.pop_size = pop_size
+        self.interface_eval = interface_prob
+        prompts = interface_prob.prompts
 
-        if len(self.prompt_func_inputs) > 1:
-            self.joined_inputs = ", ".join(f"'{s}'" for s in self.prompt_func_inputs)
+        self.evol = Evolution(
+            api_endpoint, api_key, llm_model, llm_use_local, llm_local_url, debug_mode, prompts, **kwargs
+        )
+
+        self.m = m  # Number of parents for e1 and e2
+        self.debug = debug_mode
+
+        if not self.debug:
+            warnings.filterwarnings("ignore")
+
+        self.n_p = n_p
+        self.timeout = timeout
+        self.use_numba = use_numba
+
+    def check_duplicate(self, population, code):
+        """Check if code already exists in the population."""
+        return any(code == ind["code"] for ind in population)
+
+    def _simple_parent_selection(self, pop, n):
+        """Simple parent selection: pick top n individuals by objective"""
+        # Sort by objective (higher is better)
+        sorted_pop = sorted(pop, key=lambda x: x["objective"] if x["objective"] else -float("inf"), reverse=True)
+        return sorted_pop[:n]
+
+    def population_generation(self):
+        """Generate the initial population using operator i1."""
+        n_create = 2
+        population = []
+
+        for _ in range(n_create):
+            _, pop = self.get_algorithm([], "i1")
+            population.extend(pop)
+
+        return population
+
+    def _get_alg(self, pop, operator):
+        """Dispatch for evolution operators i1/e1/e2/m1/m2/m3."""
+        offspring = {
+            "algorithm": None,
+            "code": None,
+            "objective": None,
+            "other_inf": None,
+        }
+
+        if operator == "i1":
+            parents = None
+            offspring["code"], offspring["algorithm"] = self.evol.i1()
+
+        elif operator in ("e1", "e2"):
+            parents = self._simple_parent_selection(pop, self.m)
+            method = getattr(self.evol, operator)
+            offspring["code"], offspring["algorithm"] = method(parents)
+
+        elif operator in ("m1", "m2", "m3"):
+            parents = self._simple_parent_selection(pop, 1)
+            method = getattr(self.evol, operator)
+            offspring["code"], offspring["algorithm"] = method(parents[0])
+
         else:
-            self.joined_inputs = f"'{self.prompt_func_inputs[0]}'"
+            print(f"Evolution operator [{operator}] has not been implemented!\n")
+            parents = None
 
-        if len(self.prompt_func_outputs) > 1:
-            self.joined_outputs = ", ".join(f"'{s}'" for s in self.prompt_func_outputs)
-        else:
-            self.joined_outputs = f"'{self.prompt_func_outputs[0]}'"
+        return parents, offspring
 
-        # Set LLMs
-        self.api_endpoint = api_endpoint
-        self.api_key = api_key
-        self.model_LLM = model_LLM
-        self.debug_mode = debug_mode
+    def get_offspring(self, pop, operator):
+        """Create an offspring + evaluate its fitness (with timeout & retry)."""
+        try:
+            parents, offspring = self._get_alg(pop, operator)
 
-        self.interface_llm = InterfaceLLM(
-            self.api_endpoint,
-            self.api_key,
-            self.model_LLM,
-            llm_use_local,
-            llm_local_url,
-            self.debug_mode,
-        )
-
-    def get_prompt_i1(self):
-        prompt_content = (
-            f"{self.prompt_task}\n"
-            "First, describe your new algorithm and main steps in one sentence. "
-            "The description must be inside a brace. Next, implement it in Python "
-            f"as a function named {self.prompt_func_name}. This function should accept "
-            f"{len(self.prompt_func_inputs)} input(s): {self.joined_inputs}. "
-            f"The function should return {len(self.prompt_func_outputs)} output(s): "
-            f"{self.joined_outputs}. {self.prompt_inout_inf} {self.prompt_other_inf}\n"
-            "Do not give additional explanations."
-        )
-        return prompt_content
-
-    def get_prompt_e1(self, indivs):
-        prompt_indiv = ""
-        for i, indiv in enumerate(indivs):
-            prompt_indiv += (
-                f"No.{i + 1} algorithm and the corresponding code are:\n" f"{indiv['algorithm']}\n{indiv['code']}\n"
-            )
-
-        prompt_content = (
-            f"{self.prompt_task}\n"
-            f"I have {len(indivs)} existing algorithms with their codes as follows:\n"
-            f"{prompt_indiv}"
-            "Please help me create a new algorithm that has a totally different "
-            "form from the given ones.\n"
-            "First, describe your new algorithm and main steps in one sentence. "
-            "The description must be inside a brace. Next, implement it in Python "
-            f"as a function named {self.prompt_func_name}. This function should "
-            f"accept {len(self.prompt_func_inputs)} input(s): {self.joined_inputs}. "
-            f"The function should return {len(self.prompt_func_outputs)} output(s): "
-            f"{self.joined_outputs}. {self.prompt_inout_inf} {self.prompt_other_inf}\n"
-            "Do not give additional explanations."
-        )
-        return prompt_content
-
-    def get_prompt_e2(self, indivs):
-        prompt_indiv = ""
-        for i, indiv in enumerate(indivs):
-            prompt_indiv += (
-                f"No.{i + 1} algorithm and the corresponding code are:\n" f"{indiv['algorithm']}\n{indiv['code']}\n"
-            )
-
-        prompt_content = (
-            f"{self.prompt_task}\n"
-            f"I have {len(indivs)} existing algorithms with their codes as follows:\n"
-            f"{prompt_indiv}"
-            "Please help me create a new algorithm that has a totally different "
-            "form from the given ones but can be motivated from them.\n"
-            "Firstly, identify the common backbone idea in the provided algorithms. "
-            "Secondly, based on the backbone idea describe your new algorithm in "
-            "one sentence. The description must be inside a brace. Thirdly, "
-            "implement it in Python as a function named "
-            f"{self.prompt_func_name}. This function should accept "
-            f"{len(self.prompt_func_inputs)} input(s): {self.joined_inputs}. "
-            f"The function should return {len(self.prompt_func_outputs)} output(s): "
-            f"{self.joined_outputs}. {self.prompt_inout_inf} {self.prompt_other_inf}\n"
-            "Do not give additional explanations."
-        )
-        return prompt_content
-
-    def get_prompt_m1(self, indiv1):
-        prompt_content = (
-            f"{self.prompt_task}\n"
-            "I have one algorithm with its code as follows.\n"
-            f"Algorithm description: {indiv1['algorithm']}\n"
-            f"Code:\n{indiv1['code']}\n"
-            "Please assist me in creating a new algorithm that has a different "
-            "form but can be a modified version of the algorithm provided.\n"
-            "First, describe your new algorithm and main steps in one sentence. "
-            "The description must be inside a brace. Next, implement it in Python "
-            f"as a function named {self.prompt_func_name}. This function should "
-            f"accept {len(self.prompt_func_inputs)} input(s): {self.joined_inputs}. "
-            f"The function should return {len(self.prompt_func_outputs)} output(s): "
-            f"{self.joined_outputs}. {self.prompt_inout_inf} {self.prompt_other_inf}\n"
-            "Do not give additional explanations."
-        )
-        return prompt_content
-
-    def get_prompt_m2(self, indiv1):
-        prompt_content = (
-            f"{self.prompt_task}\n"
-            "I have one algorithm with its code as follows.\n"
-            f"Algorithm description: {indiv1['algorithm']}\n"
-            f"Code:\n{indiv1['code']}\n"
-            "Please identify the main algorithm parameters and assist me in "
-            "creating a new algorithm that has different parameter settings of "
-            "the score function provided.\n"
-            "First, describe your new algorithm and main steps in one sentence. "
-            "The description must be inside a brace. Next, implement it in Python "
-            f"as a function named {self.prompt_func_name}. This function should "
-            f"accept {len(self.prompt_func_inputs)} input(s): {self.joined_inputs}. "
-            f"The function should return {len(self.prompt_func_outputs)} output(s): "
-            f"{self.joined_outputs}. {self.prompt_inout_inf} {self.prompt_other_inf}\n"
-            "Do not give additional explanations."
-        )
-        return prompt_content
-
-    def get_prompt_m3(self, indiv1):
-        prompt_content = (
-            "First, you need to identify the main components in the function below. "
-            "Next, analyze whether any of these components can be overfit to the "
-            "in-distribution instances. Then, based on your analysis, simplify the "
-            "components to enhance generalization to potential out-of-distribution "
-            "instances. Finally, provide the revised code, keeping the function "
-            "name, inputs, and outputs unchanged.\n"
-            f"{indiv1['code']}\n"
-            f"{self.prompt_inout_inf}\n"
-            "Do not give additional explanations."
-        )
-        return prompt_content
-
-    def _get_alg(self, prompt_content):
-        response = self.interface_llm.get_response(prompt_content)
-
-        algorithm = re.findall(r"\{(.*)\}", response, re.DOTALL)
-        if not algorithm:
-            if "python" in response:
-                algorithm = re.findall(r"^.*?(?=python)", response, re.DOTALL)
-            elif "import" in response:
-                algorithm = re.findall(r"^.*?(?=import)", response, re.DOTALL)
+            # Optional: inject @numba decorator
+            if self.use_numba:
+                pattern = r"def\s+(\w+)\s*\(.*\):"
+                match = re.search(pattern, offspring["code"])
+                function_name = match.group(1)
+                code = add_numba_decorator(program=offspring["code"], function_name=function_name)
             else:
-                algorithm = re.findall(r"^.*?(?=def)", response, re.DOTALL)
+                code = offspring["code"]
 
-        code = re.findall(r"import.*return", response, re.DOTALL)
-        if not code:
-            code = re.findall(r"def.*return", response, re.DOTALL)
+            # Duplicate handling
+            n_retry = 1
+            while self.check_duplicate(pop, offspring["code"]):
+                n_retry += 1
 
-        n_retry = 1
-        while not algorithm or not code:
-            if self.debug_mode:
-                print("Error: algorithm or code not identified, waiting 1 second and retrying...")
+                if self.debug:
+                    print("duplicated code, wait 1 second and retrying ... ")
 
-            response = self.interface_llm.get_response(prompt_content)
+                parents, offspring = self._get_alg(pop, operator)
 
-            algorithm = re.findall(r"\{(.*)\}", response, re.DOTALL)
-            if not algorithm:
-                if "python" in response:
-                    algorithm = re.findall(r"^.*?(?=python)", response, re.DOTALL)
-                elif "import" in response:
-                    algorithm = re.findall(r"^.*?(?=import)", response, re.DOTALL)
+                if self.use_numba:
+                    pattern = r"def\s+(\w+)\s*\(.*\):"
+                    match = re.search(pattern, offspring["code"])
+                    function_name = match.group(1)
+                    code = add_numba_decorator(program=offspring["code"], function_name=function_name)
                 else:
-                    algorithm = re.findall(r"^.*?(?=def)", response, re.DOTALL)
+                    code = offspring["code"]
 
-            code = re.findall(r"import.*return", response, re.DOTALL)
-            if not code:
-                code = re.findall(r"def.*return", response, re.DOTALL)
+                if n_retry > 1:
+                    break
 
-            if n_retry > 3:
-                break
-            n_retry += 1
+            # Evaluate with timeout
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(self.interface_eval.evaluate, code)
+                fitness = future.result(timeout=self.timeout)
+                future.cancel()
 
-        algorithm = algorithm[0]
-        code = code[0]
-        code_all = code + " " + ", ".join(self.prompt_func_outputs)
+            offspring["objective"] = np.round(fitness, 5).item()
 
-        return [code_all, algorithm]
+        except Exception:
+            parents = None
+            offspring = {
+                "algorithm": None,
+                "code": None,
+                "objective": None,
+                "other_inf": None,
+            }
 
-    def i1(self):
-        prompt_content = self.get_prompt_i1()
+        return parents, offspring
 
-        if self.debug_mode:
-            print("\n >>> check prompt for creating algorithm using [ i1 ]:\n", prompt_content)
-            input(">>> Press 'Enter' to continue")
+    def get_algorithm(self, pop, operator):
+        """Parallel generation of multiple offspring."""
+        try:
+            results = Parallel(n_jobs=self.n_p, timeout=self.timeout + 15)(
+                delayed(self.get_offspring)(pop, operator) for _ in range(self.pop_size)
+            )
+        except Exception as e:
+            if self.debug:
+                print(f"Error: {e}")
+            print("Parallel time out.")
+            results = []
 
-        code_all, algorithm = self._get_alg(prompt_content)
+        time.sleep(1)
 
-        if self.debug_mode:
-            print("\n >>> designed algorithm:\n", algorithm)
-            print("\n >>> designed code:\n", code_all)
-            input(">>> Press 'Enter' to continue")
+        out_p = []
+        out_off = []
+        for parents, off in results:
+            out_p.append(parents)
+            out_off.append(off)
 
-        return [code_all, algorithm]
+            if self.debug:
+                print(f">>> check offsprings:\n {off}")
 
-    def e1(self, parents):
-        prompt_content = self.get_prompt_e1(parents)
-
-        if self.debug_mode:
-            print("\n >>> check prompt for creating algorithm using [ e1 ]:\n", prompt_content)
-            input(">>> Press 'Enter' to continue")
-
-        code_all, algorithm = self._get_alg(prompt_content)
-
-        if self.debug_mode:
-            print("\n >>> designed algorithm:\n", algorithm)
-            print("\n >>> designed code:\n", code_all)
-            input(">>> Press 'Enter' to continue")
-
-        return [code_all, algorithm]
-
-    def e2(self, parents):
-        prompt_content = self.get_prompt_e2(parents)
-
-        if self.debug_mode:
-            print("\n >>> check prompt for creating algorithm using [ e2 ]:\n", prompt_content)
-            input(">>> Press 'Enter' to continue")
-
-        code_all, algorithm = self._get_alg(prompt_content)
-
-        if self.debug_mode:
-            print("\n >>> designed algorithm:\n", algorithm)
-            print("\n >>> designed code:\n", code_all)
-            input(">>> Press 'Enter' to continue")
-
-        return [code_all, algorithm]
-
-    def m1(self, parents):
-        prompt_content = self.get_prompt_m1(parents)
-
-        if self.debug_mode:
-            print("\n >>> check prompt for creating algorithm using [ m1 ]:\n", prompt_content)
-            input(">>> Press 'Enter' to continue")
-
-        code_all, algorithm = self._get_alg(prompt_content)
-
-        if self.debug_mode:
-            print("\n >>> designed algorithm:\n", algorithm)
-            print("\n >>> designed code:\n", code_all)
-            input(">>> Press 'Enter' to continue")
-
-        return [code_all, algorithm]
-
-    def m2(self, parents):
-        prompt_content = self.get_prompt_m2(parents)
-
-        if self.debug_mode:
-            print("\n >>> check prompt for creating algorithm using [ m2 ]:\n", prompt_content)
-            input(">>> Press 'Enter' to continue")
-
-        code_all, algorithm = self._get_alg(prompt_content)
-
-        if self.debug_mode:
-            print("\n >>> designed algorithm:\n", algorithm)
-            print("\n >>> designed code:\n", code_all)
-            input(">>> Press 'Enter' to continue")
-
-        return [code_all, algorithm]
-
-    def m3(self, parents):
-        prompt_content = self.get_prompt_m3(parents)
-
-        if self.debug_mode:
-            print("\n >>> check prompt for creating algorithm using [ m3 ]:\n", prompt_content)
-            input(">>> Press 'Enter' to continue")
-
-        code_all, algorithm = self._get_alg(prompt_content)
-
-        if self.debug_mode:
-            print("\n >>> designed algorithm:\n", algorithm)
-            print("\n >>> designed code:\n", code_all)
-            input(">>> Press 'Enter' to continue")
-
-        return [code_all, algorithm]
+        return out_p, out_off

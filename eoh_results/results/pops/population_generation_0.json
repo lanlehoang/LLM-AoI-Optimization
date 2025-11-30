@@ -1,0 +1,14 @@
+[
+     {
+          "algorithm": "The algorithm computes offsets for the Q-values based on queue congestion, proximity to destination, service quality, and distance delay, using weighted heuristics to refine actions based on given arrays.",
+          "code": "import numpy as np\n\ndef compute_offset(distances, arc_lengths, processing_rates, queue_lengths):\n    # Constants for weighting the features\n    queue_weight = -0.1  # Negative impact for congestion\n    arc_length_weight = 0.05  # Positive impact for proximity to destination\n    processing_rate_weight = 0.1  # Positive impact for fast service\n    distance_weight = -0.01  # Negative impact for distance delay\n\n    # Calculate offsets\n    offsets = (queue_weight * queue_lengths) + \\\n              (arc_length_weight * (1 / (arc_lengths + 1e-6))) + \\\n              (processing_rate_weight * processing_rates) + \\\n              (distance_weight * (1 / (distances + 1e-6)))\n    \n    return offsets",
+          "objective": 0,
+          "other_inf": null
+     },
+     {
+          "algorithm": "The algorithm computes Q-offsets by penalizing high queue lengths and long distances while rewarding low arc lengths and high processing rates, providing a balanced adjustment to the agent's Q-values to improve routing decisions.",
+          "code": "import numpy as np\n\ndef compute_offset(distances, arc_lengths, processing_rates, queue_lengths):\n    # Constants for scaling offsets\n    queue_penalty = -0.1\n    arc_reward = 0.05\n    processing_reward = 0.1\n    distance_penalty = -0.02\n    \n    # Compute individual offsets\n    offsets = (\n        queue_penalty * queue_lengths +\n        arc_reward * (1 / (arc_lengths + 1e-5)) +  # Adding a small value to avoid division by zero\n        processing_reward * processing_rates +\n        distance_penalty * (1 / (distances + 1e-5))  # Adding a small value to avoid division by zero\n    )\n    \n    return offsets",
+          "objective": 0,
+          "other_inf": null
+     }
+]
