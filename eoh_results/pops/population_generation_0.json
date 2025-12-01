@@ -1,0 +1,20 @@
+[
+     {
+          "algorithm": "The algorithm computes offsets for Q-values based on queue congestion, proximity to the destination, processing speed, and propagation delay to refine routing decisions.",
+          "code": "import numpy as np\n\ndef compute_offset(distances, arc_lengths, processing_rates, queue_lengths):\n    speed_of_light = 299792.458  # speed of light in km/s\n    delay_weights = 0.1          # weight for distance delay\n    congestion_penalty = -0.1    # offset for queue length\n    arc_bonus = 0.1              # bonus for low arc length\n    processing_bonus = 0.05       # bonus for high processing rate\n    \n    offsets = np.zeros_like(distances, dtype=float)\n\n    # Compute negative offset for high queue lengths (congestion)\n    offsets += congestion_penalty * queue_lengths\n    \n    # Compute positive offset for low arc lengths (closer to destination)\n    arc_length_bonus = np.where(arc_lengths < np.median(arc_lengths), arc_bonus, 0)\n    offsets += arc_length_bonus\n    \n    # Compute positive offset for high processing rates\n    processing_rate_bonus = processing_rates / np.max(processing_rates) * processing_bonus\n    offsets += processing_rate_bonus\n    \n    # Compute delay based on distance\n    distance_delays = distances / speed_of_light * delay_weights\n    offsets -= distance_delays\n    \n    return offsets",
+          "objective": 1.55382,
+          "other_inf": null
+     },
+     {
+          "algorithm": "The algorithm computes offsets for Q-values based on queue length, arc length, processing rate, and distance, applying a linear combination of weighted factors to enhance routing decisions while ensuring offsets refine the learned values.",
+          "code": "import numpy as np\n\ndef compute_offset(distances, arc_lengths, processing_rates, queue_lengths):\n    # Constants for scaling the offsets\n    queue_weight = -0.1\n    arc_weight = 0.1\n    processing_weight = 0.1\n    distance_weight = -0.01\n    \n    # Calculate offsets based on the features\n    offsets = (queue_weight * queue_lengths +\n               arc_weight * (1 / (arc_lengths + 1e-6)) +  # Avoid division by zero\n               processing_weight * processing_rates +\n               distance_weight * (1 / (distances + 1e-6)))  # Avoid division by zero\n\n    # Ensure that offsets replicate the scale in examples, minor adjustments if needed\n    offsets = np.clip(offsets, -1, 1)  # Clipping to limit the range of offsets\n    return offsets",
+          "objective": 1.43724,
+          "other_inf": null
+     },
+     {
+          "algorithm": "The algorithm computes offset values based on queue lengths, arc lengths, processing rates, and distances to refine the agent's Q-values for better routing performance.",
+          "code": "import numpy as np\n\ndef compute_offset(distances, arc_lengths, processing_rates, queue_lengths):\n    # Constants for impact scaling\n    queue_weight = -0.05  # negative impact due to queue length\n    arc_weight = 0.1       # positive impact from proximity to destination\n    proc_weight = 0.1      # positive impact from processing rates\n    distance_weight = -0.01 # negative impact from distance\n\n    # Calculate offsets\n    offsets = (\n        queue_weight * queue_lengths +\n        arc_weight * (1 / (arc_lengths + 1e-6)) +  # Avoid division by zero\n        proc_weight * processing_rates +\n        distance_weight * (1 / (distances + 1e-6)) # Avoid division by zero\n    )\n\n    return offsets",
+          "objective": -0.46536,
+          "other_inf": null
+     }
+]

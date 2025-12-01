@@ -1,0 +1,20 @@
+[
+     {
+          "algorithm": "The algorithm computes offsets for Q-values based on queue congestion, proximity to the destination, processing speed, and propagation delay to refine routing decisions.",
+          "code": "import numpy as np\n\ndef compute_offset(distances, arc_lengths, processing_rates, queue_lengths):\n    speed_of_light = 299792.458  # speed of light in km/s\n    delay_weights = 0.1          # weight for distance delay\n    congestion_penalty = -0.1    # offset for queue length\n    arc_bonus = 0.1              # bonus for low arc length\n    processing_bonus = 0.05       # bonus for high processing rate\n    \n    offsets = np.zeros_like(distances, dtype=float)\n\n    # Compute negative offset for high queue lengths (congestion)\n    offsets += congestion_penalty * queue_lengths\n    \n    # Compute positive offset for low arc lengths (closer to destination)\n    arc_length_bonus = np.where(arc_lengths < np.median(arc_lengths), arc_bonus, 0)\n    offsets += arc_length_bonus\n    \n    # Compute positive offset for high processing rates\n    processing_rate_bonus = processing_rates / np.max(processing_rates) * processing_bonus\n    offsets += processing_rate_bonus\n    \n    # Compute delay based on distance\n    distance_delays = distances / speed_of_light * delay_weights\n    offsets -= distance_delays\n    \n    return offsets",
+          "objective": 1.55382,
+          "other_inf": null
+     },
+     {
+          "algorithm": "```",
+          "code": "import numpy as np\n\ndef compute_offset(distances, arc_lengths, processing_rates, queue_lengths):\n    speed_of_light = 299792.458  # speed of light in km/s\n    delay_weights = 0.1          # weight for distance delay\n    congestion_penalty = -0.1    # offset for queue length\n    arc_bonus = 0.1              # bonus for low arc length\n    \n    offsets = np.zeros_like(distances, dtype=float)\n\n    # Compute negative offset for high queue lengths (congestion)\n    offsets += congestion_penalty * np.clip(queue_lengths, 0, None)\n    \n    # Compute positive offset for low arc lengths (closer to destination)\n    arc_length_bonus = np.where(arc_lengths < np.percentile(arc_lengths, 50), arc_bonus, 0)\n    offsets += arc_length_bonus\n    \n    # Compute positive offset for relative processing rates\n    processing_rate_bonus = np.clip(processing_rates / np.max(processing_rates, initial=1) * 0.05, 0, None)\n    offsets += processing_rate_bonus\n    \n    # Compute delay based on distance\n    offsets -= (distances / speed_of_light * delay_weights)\n    \n    return offsets",
+          "objective": 1.55382,
+          "other_inf": null
+     },
+     {
+          "algorithm": "```",
+          "code": "import numpy as np\n\ndef compute_offset(distances, arc_lengths, processing_rates, queue_lengths):\n    speed_of_light = 299792.458  # speed of light in km/s\n    delay_weights = 0.1          # weight for distance delay\n    congestion_penalty = -0.1    # offset for queue length\n    arc_bonus = 0.1              # bonus for low arc length\n    processing_bonus = 0.05       # bonus for high processing rate\n    \n    offsets = np.zeros_like(distances, dtype=float)\n\n    # Simplified congestion impact\n    offsets += congestion_penalty * np.clip(queue_lengths, 0, None)\n\n    # Bonus for lower arc lengths (symmetric about a threshold)\n    arc_length_bonus = arc_bonus * (arc_lengths < np.mean(arc_lengths)).astype(float)\n    offsets += arc_length_bonus\n    \n    # Normalized processing rate bonus\n    processing_rate_bonus = np.clip(processing_rates / (np.mean(processing_rates) + 1e-8), 0, 1) * processing_bonus\n    offsets += processing_rate_bonus\n    \n    # Delay based on distance\n    offsets -= (distances / speed_of_light) * delay_weights\n    \n    return offsets",
+          "objective": 1.50397,
+          "other_inf": null
+     }
+]

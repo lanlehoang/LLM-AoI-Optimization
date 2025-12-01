@@ -16,8 +16,3 @@ aoi_venv/
 
 # Miscellaneous testing
 test.*
-
-# Artefact files
-logs/
-models/
-data/
