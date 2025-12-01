@@ -4,11 +4,15 @@ import random
 import time
 
 from .eoh_interface_ec import InterfaceEC
+from .logger import EvolLogger
 
 
 class EOH:
     def __init__(self, params, problem, **kwargs):
         self.prob = problem
+
+        # Initialize logger
+        self.logger = EvolLogger(params.exp_output_path)
 
         # LLM settings
         self.use_local_llm = params.llm_use_local
@@ -90,6 +94,11 @@ class EOH:
         with open(filename, "w") as f:
             json.dump(population, f, indent=5)
 
+        # Log initial population
+        for idx, ind in enumerate(population):
+            self.logger.log_individual(0, "i1", idx, ind)
+        self.logger.log_best(0, population[0])
+
         # Main evolution loop
         n_op = len(self.operators)
 
@@ -101,6 +110,9 @@ class EOH:
                 op_w = self.operator_weights[i]
                 if np.random.rand() < op_w:
                     parents, offsprings = interface_ec.get_algorithm(population, op)
+                    # Log each offspring
+                    for idx, off in enumerate(offsprings):
+                        self.logger.log_individual(gen + 1, op, idx, off)
                     self.add2pop(population, offsprings)
 
                     for off in offsprings:
@@ -108,7 +120,9 @@ class EOH:
 
                 # Selection: keep best individuals
                 population = self._simple_selection(population, self.pop_size)
-                print()
+
+            # Log best individual of this generation
+            self.logger.log_best(gen + 1, population[0])
 
             # Save population
             filename = self.output_path + f"/pops/population_generation_{gen + 1}.json"
@@ -126,4 +140,6 @@ class EOH:
             print("Pop Objs: ", end=" ")
             for ind in population:
                 print(str(ind["objective"]) + " ", end="")
-            print()
+
+        # Save logs to CSV at the end
+        self.logger.save_to_csv()

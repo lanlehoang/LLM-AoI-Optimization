@@ -136,7 +136,11 @@ class InterfaceEC:
                 fitness = future.result(timeout=self.timeout)
                 future.cancel()
 
-            offspring["objective"] = np.round(fitness, 5).item()
+            offspring["objective"] = np.round(fitness, 4).item()
+
+            # Attach evaluation metrics
+            if hasattr(self.interface_eval, "_last_eval_metrics"):
+                offspring["eval_metrics"] = self.interface_eval._last_eval_metrics
 
         except Exception:
             parents = None

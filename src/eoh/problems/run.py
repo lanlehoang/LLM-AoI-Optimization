@@ -20,7 +20,9 @@ class SatelliteRouting:
         self.early_break_fitness = -1.0
 
         self.drop_threshold = 0.1  # Acceptable dropped ratio
+        self._last_eval_metrics = None  # For logging purposes
 
+        # Load pre-trained agent
         self.agent = Agent()
         self.agent.load_model(model_path)
         self.prompts = GetPrompts()
@@ -33,12 +35,12 @@ class SatelliteRouting:
 
             if "compute_offset" not in namespace:
                 logger.error("compute_offset function not found in generated code")
-                return None
+                return self.early_break_fitness
             compute_offset = namespace["compute_offset"]
 
         except Exception as e:
             logger.error(f"Error executing generated code: {e}")
-            return None
+            return self.early_break_fitness
 
         # Initialize environment and run simulations
         np.random.seed(RANDOM_SEED)
@@ -66,11 +68,11 @@ class SatelliteRouting:
 
                     if q_offset.shape != (N_NEIGHBOURS,):
                         logger.error(f"offset shape {q_offset.shape} != expected ({N_NEIGHBOURS},)")
-                        return None
+                        return self.early_break_fitness
 
                 except Exception as e:
                     logger.error(f"Error calling compute_offset: {e}")
-                    return None
+                    return self.early_break_fitness
 
                 action = self.agent.choose_action_with_offset(env.state, q_offset)
                 episode_done, episode_info = env.step(action)
@@ -89,6 +91,12 @@ class SatelliteRouting:
 
         fitness = (1 - avg_dropped_ratio) / avg_aoi if avg_dropped_ratio < self.drop_threshold else -avg_dropped_ratio
         logger.info(f"Avg AOI: {avg_aoi:.3f}, Avg Dropped Ratio: {avg_dropped_ratio:.3f}, Fitness: {fitness:.3f}")
+
+        # Store metrics
+        self._last_eval_metrics = {
+            "avg_aoi": avg_aoi,
+            "avg_dropped_ratio": avg_dropped_ratio,
+        }
         return fitness
 
 
