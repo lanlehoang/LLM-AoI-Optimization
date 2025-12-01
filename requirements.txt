@@ -5,3 +5,4 @@ numpy # Numerical operations
 pandas # Data manipulation and analysis
 litellm # Lightweight LLM library
 joblib # Running tasks in parallel
+matplotlib # Plotting library
