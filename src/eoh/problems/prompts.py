@@ -3,7 +3,7 @@ from src.utils.get_config import get_system_config
 import tiktoken
 
 MAX_NEIGHBOURS = get_system_config()["satellite"]["n_neighbours"]
-DATA_SAMPLE_PATH = "data/dqn_data_samples_20251127.csv"
+DATA_SAMPLE_PATH = "data/dqn_data_samples_20251201.csv"
 
 
 class GetPrompts:

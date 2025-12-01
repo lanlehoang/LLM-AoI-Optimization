@@ -14,6 +14,13 @@ N_NEIGHBOURS = get_system_config()["satellite"]["n_neighbours"]
 class SatelliteRouting:
     def __init__(self, model_path) -> None:
         self.n_instance = 4
+
+        # Early break from circuitous heuristics
+        self.max_step_per_instance = 5000
+        self.early_break_fitness = -1.0
+
+        self.drop_threshold = 0.1  # Acceptable dropped ratio
+
         self.agent = Agent()
         self.agent.load_model(model_path)
         self.prompts = GetPrompts()
@@ -43,6 +50,7 @@ class SatelliteRouting:
         for _ in range(self.n_instance):
             env.reset()
             episode_done = False
+            steps = 0
 
             while not episode_done:
                 env.handle_events()
@@ -66,6 +74,11 @@ class SatelliteRouting:
 
                 action = self.agent.choose_action_with_offset(env.state, q_offset)
                 episode_done, episode_info = env.step(action)
+                steps += 1
+
+            if steps > self.max_step_per_instance:
+                logger.warning("Max steps exceeded in an episode")
+                return self.early_break_fitness
 
             # Get metrics
             aois.append(episode_info["average_aoi"])
@@ -74,7 +87,8 @@ class SatelliteRouting:
         avg_aoi = np.mean(aois).item()
         avg_dropped_ratio = np.mean(dropped_ratios).item()
 
-        fitness = (1 - avg_dropped_ratio) / avg_aoi if avg_dropped_ratio < 0.1 else 0
+        fitness = (1 - avg_dropped_ratio) / avg_aoi if avg_dropped_ratio < self.drop_threshold else -avg_dropped_ratio
+        logger.info(f"Avg AOI: {avg_aoi:.3f}, Avg Dropped Ratio: {avg_dropped_ratio:.3f}, Fitness: {fitness:.3f}")
         return fitness
 
 
@@ -85,7 +99,7 @@ if __name__ == "__main__":
     import time
 
     BASE_PATH = Path.resolve(Path(__file__)).parent.parent.parent.parent
-    model_path = BASE_PATH / "models" / "dqn_baseline_20251127.pth"
+    model_path = BASE_PATH / "models" / "dqn_baseline_20251201.pth"
     problem = SatelliteRouting(model_path)
 
     # Example code string

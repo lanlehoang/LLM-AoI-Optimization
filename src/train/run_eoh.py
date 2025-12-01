@@ -10,7 +10,7 @@ API_ENDPOINT = "api.openai.com"
 
 # Get the pretrained DQN model path
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
-MODEL_PATH = BASE_DIR / "models" / "dqn_baseline_20251127.pth"
+MODEL_PATH = BASE_DIR / "models" / "dqn_baseline_20251201.pth"
 
 
 def run_evolution():
@@ -22,8 +22,8 @@ def run_evolution():
         llm_api_endpoint=API_ENDPOINT,
         llm_api_key=API_KEY,
         llm_model=MODEL,
-        ec_pop_size=2,  # Number of individuals per population
-        ec_n_pop=2,  # Number of populations (iterations)
+        ec_pop_size=3,  # Number of individuals per population
+        ec_n_pop=5,  # Number of populations (iterations)
         exp_n_proc=1,  # Multi-core parallel
         exp_debug_mode=False,
     )

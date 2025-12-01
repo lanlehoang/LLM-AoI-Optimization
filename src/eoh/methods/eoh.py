@@ -86,7 +86,7 @@ class EOH:
         print("initial population has been created!")
 
         # Save initial population
-        filename = self.output_path + "/results/pops/population_generation_0.json"
+        filename = self.output_path + "/pops/population_generation_0.json"
         with open(filename, "w") as f:
             json.dump(population, f, indent=5)
 
@@ -111,12 +111,12 @@ class EOH:
                 print()
 
             # Save population
-            filename = self.output_path + f"/results/pops/population_generation_{gen + 1}.json"
+            filename = self.output_path + f"/pops/population_generation_{gen + 1}.json"
             with open(filename, "w") as f:
                 json.dump(population, f, indent=5)
 
             # Save best individual
-            filename = self.output_path + f"/results/pops_best/population_generation_{gen + 1}.json"
+            filename = self.output_path + f"/pops_best/population_generation_{gen + 1}.json"
             with open(filename, "w") as f:
                 json.dump(population[0], f, indent=5)
 
