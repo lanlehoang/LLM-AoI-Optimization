@@ -148,8 +148,8 @@ class MethodEvaluator:
 
 
 if __name__ == "__main__":
-    eval = MethodEvaluator(n_episodes=5)
-    # eval.evaluate_greedy_nearest()
-    # eval.evaluate_greedy_expected_time()
-    # eval.evaluate_dqn()
+    eval = MethodEvaluator(n_episodes=10)
+    eval.evaluate_greedy_nearest()
+    eval.evaluate_greedy_expected_time()
+    eval.evaluate_dqn()
     eval.evaluate_dqn_heuristic()
