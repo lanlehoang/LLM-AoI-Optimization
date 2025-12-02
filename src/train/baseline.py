@@ -2,7 +2,7 @@ from src.env.env import SatelliteEnv
 from src.utils.logger import get_logger
 from src.utils.get_config import get_agent_config, get_system_config
 from src.utils.generators import RANDOM_SEED
-from src.agents.dqn import Agent
+from src.agents.dqn import DqnAgent
 import numpy as np
 from src.env.state_models import EnvironmentState
 from datetime import datetime
@@ -28,7 +28,7 @@ def main():
     env = SatelliteEnv()
 
     logger.info("Initializing the agent")
-    agent = Agent()
+    agent = DqnAgent()
     steps = 0  # Count steps to decay epsilon and train the agent
     decay_interval = agent_config["train"]["epsilon"]["decay_interval"]
 

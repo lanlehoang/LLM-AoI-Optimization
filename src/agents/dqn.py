@@ -194,7 +194,7 @@ class ReplayBuffer(object):
         return states, actions, rewards, new_states, terminal
 
 
-class Agent:
+class DqnAgent:
     def __init__(self, input_dims=ENVIRONMENT_SHAPE, mem_size=2048, target_update_interval=10):
         logger.info(f"Initializing DQN Agent with device: {DEVICE}")
         n_actions = system_config["satellite"]["n_neighbours"]

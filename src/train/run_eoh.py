@@ -10,7 +10,7 @@ API_ENDPOINT = "api.openai.com"
 
 # Get the pretrained DQN model path
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
-MODEL_PATH = BASE_DIR / "models" / "dqn_baseline_20251201.pth"
+MODEL_PATH = BASE_DIR / "models" / "dqn_baseline_20251202.pth"
 
 
 def run_evolution():

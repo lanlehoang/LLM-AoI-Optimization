@@ -1,5 +1,5 @@
 import numpy as np
-from src.agents.dqn import Agent
+from src.agents.dqn import DqnAgent
 from src.utils.get_config import get_system_config
 from src.utils.generators import RANDOM_SEED
 from src.utils.others import state_to_arrays
@@ -23,7 +23,7 @@ class SatelliteRouting:
         self._last_eval_metrics = None  # For logging purposes
 
         # Load pre-trained agent
-        self.agent = Agent()
+        self.agent = DqnAgent()
         self.agent.load_model(model_path)
         self.prompts = GetPrompts()
 
@@ -89,7 +89,7 @@ class SatelliteRouting:
         avg_aoi = np.mean(aois).item()
         avg_dropped_ratio = np.mean(dropped_ratios).item()
 
-        fitness = (1 - avg_dropped_ratio) / avg_aoi if avg_dropped_ratio < self.drop_threshold else -avg_dropped_ratio
+        fitness = (1 - avg_dropped_ratio) / avg_aoi
         logger.info(f"Avg AOI: {avg_aoi:.3f}, Avg Dropped Ratio: {avg_dropped_ratio:.3f}, Fitness: {fitness:.3f}")
 
         # Store metrics
@@ -107,7 +107,7 @@ if __name__ == "__main__":
     import time
 
     BASE_PATH = Path.resolve(Path(__file__)).parent.parent.parent.parent
-    model_path = BASE_PATH / "models" / "dqn_baseline_20251201.pth"
+    model_path = BASE_PATH / "models" / "dqn_baseline_20251202.pth"
     problem = SatelliteRouting(model_path)
 
     # Example code string
