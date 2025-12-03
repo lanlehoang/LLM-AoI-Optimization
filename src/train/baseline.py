@@ -93,8 +93,8 @@ def main():
     DATA_PATH = f"{DATA_DIR}/dqn_results_{datetime.now().strftime('%Y%m%d')}.csv"
     df = pd.DataFrame(
         {
-            "AoI": [aoi.item() for aoi in np.round(aois, 4)],
-            "Dropped_Ratio": [r.item() for r in np.round(dropped_ratios, 4)],
+            "average_aoi": [aoi.item() for aoi in np.round(aois, 4)],
+            "dropped_ratio": [r.item() for r in np.round(dropped_ratios, 4)],
         }
     )
     df.to_csv(DATA_PATH, index=False)

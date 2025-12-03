@@ -2,11 +2,12 @@
 Utility functions for generating reports and visualizations.
 """
 
+from typing import List
 import numpy as np
 import matplotlib.pyplot as plt
 
 
-def calc_running_mean_adaptive(nums, window_size):
+def calc_running_mean_adaptive(nums, window_size=4):
     nums = np.asarray(nums, dtype=float)
     running_mean = np.empty_like(nums)
 
@@ -17,15 +18,48 @@ def calc_running_mean_adaptive(nums, window_size):
     return running_mean
 
 
-def draw_line_plot(data_array, plot_title, x_label, y_label):
+def plot_single_line(data_array, plot_title, x_label, y_label, y_ticks, save_path, grid_step=5, is_log_scale=False):
     plt.figure(figsize=(10, 5))
     plt.plot(data_array, marker="o", linestyle="-", color="b", label=plot_title)
     plt.grid(True, which="both", linestyle="--", linewidth=0.5)
     plt.xlabel(x_label)
     plt.ylabel(y_label)
     plt.title(plot_title)
-    plt.xticks(np.arange(0, len(data_array), step=5))
-    plt.yticks(np.round(np.linspace(data_array.min(), data_array.max(), 10), 3))
+    plt.xticks(np.arange(0, len(data_array), step=grid_step))
+    plt.yticks(y_ticks)
+    # Set y-axis to logarithmic scale if specified
+    if is_log_scale:
+        plt.yscale("log")
     plt.legend()
     plt.tight_layout()
+    plt.savefig(save_path)
+    plt.show()
+
+
+def plot_multiple_lines(
+    data_arrays: List[np.ndarray],
+    plot_title: str,
+    x_label: str,
+    y_label: str,
+    y_ticks: List[float],
+    labels: List[str],
+    save_path: str,
+    grid_step: int = 1,
+    is_log_scale: bool = False,
+):
+    plt.figure(figsize=(10, 5))
+    for i, data_array in enumerate(data_arrays):
+        plt.plot(data_array, marker="o", linestyle="-", label=labels[i])
+    plt.grid(True, which="both", linestyle="--", linewidth=0.5)
+    plt.xlabel(x_label)
+    plt.ylabel(y_label)
+    plt.title(plot_title)
+    plt.xticks(np.arange(0, len(data_arrays[0]), step=grid_step))
+    plt.yticks(y_ticks)
+    # Set y-axis to logarithmic scale if specified
+    if is_log_scale:
+        plt.yscale("log")
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(save_path)
     plt.show()
