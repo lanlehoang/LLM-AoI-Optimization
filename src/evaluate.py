@@ -18,7 +18,7 @@ import os
 logger = get_logger(__name__)
 
 BASE_PATH = Path(__file__).resolve().parent.parent
-DQN_MODEL_PATH = BASE_PATH / "models" / "dqn_baseline_20251202.pth"
+DQN_MODEL_PATH = BASE_PATH / "models" / "dqn_baseline_dmax_2250.pth"
 HEURISTIC_CONFIG_PATH = BASE_PATH / "eoh_results" / "pops_best" / "population_generation_4.json"
 
 

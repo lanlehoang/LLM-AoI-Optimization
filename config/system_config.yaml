@@ -1,7 +1,7 @@
 satellite:
   height: 600 # km
   n_satellites: 1000
-  d_max: 2000 # km
+  d_max: 2250 # km
   angle_limit: 75 # Degree, should be less than 90
   n_neighbours: 8 # Maximum number of nearest neighbours to consider per satellite
   # Random mu for different Poisson processes

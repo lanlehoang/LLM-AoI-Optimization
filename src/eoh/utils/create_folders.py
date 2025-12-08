@@ -3,7 +3,7 @@ import os
 
 def create_folders(results_path):
     # Specify the path where you want to create the folder
-    folder_path = os.path.join(results_path, "results")
+    folder_path = results_path
 
     # Check if the folder already exists
     if not os.path.exists(folder_path):

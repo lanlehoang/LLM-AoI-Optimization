@@ -21,6 +21,9 @@ BASE_DIR = Path.resolve(Path(__file__)).parent.parent.parent
 MODEL_DIR = BASE_DIR / "models"
 DATA_DIR = BASE_DIR / "data"
 
+DMAX = system_config["satellite"]["d_max"]
+SUFFIX = f"dmax_{DMAX}"  # To distinguish different system configurations
+
 
 def main():
     logger.info(f"Initializing the environment with random seed {RANDOM_SEED}")
@@ -84,13 +87,13 @@ def main():
 
     # Save the model
     os.makedirs(MODEL_DIR, exist_ok=True)
-    MODEL_PATH = f"{MODEL_DIR}/dqn_baseline_{datetime.now().strftime('%Y%m%d')}.pth"
+    MODEL_PATH = f"{MODEL_DIR}/dqn_baseline_{SUFFIX}.pth"
     agent.save_model(MODEL_PATH)
     logger.info(f"Model saved to {MODEL_PATH}")
 
     # Save the results
     os.makedirs(DATA_DIR, exist_ok=True)
-    DATA_PATH = f"{DATA_DIR}/dqn_results_{datetime.now().strftime('%Y%m%d')}.csv"
+    DATA_PATH = f"{DATA_DIR}/dqn_results_{SUFFIX}.csv"
     df = pd.DataFrame(
         {
             "average_aoi": [aoi.item() for aoi in np.round(aois, 4)],
@@ -101,7 +104,7 @@ def main():
     logger.info(f"Results saved to {DATA_PATH}")
 
     # Save data samples for LLM prompt
-    SAMPLE_PATH = f"{DATA_DIR}/dqn_data_samples_{datetime.now().strftime('%Y%m%d')}.csv"
+    SAMPLE_PATH = f"{DATA_DIR}/dqn_data_samples_{SUFFIX}.csv"
     agent.write_samples(SAMPLE_PATH)
     logger.info(f"Data samples saved to {SAMPLE_PATH}")
 
