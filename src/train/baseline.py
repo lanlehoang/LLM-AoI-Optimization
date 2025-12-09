@@ -21,8 +21,8 @@ BASE_DIR = Path.resolve(Path(__file__)).parent.parent.parent
 MODEL_DIR = BASE_DIR / "models"
 DATA_DIR = BASE_DIR / "data"
 
-DMAX = system_config["satellite"]["d_max"]
-SUFFIX = f"dmax_{DMAX}"  # To distinguish different system configurations
+QUEUE_LIMIT = system_config["satellite"]["queue_limit"]
+SUFFIX = f"queue_limit_{QUEUE_LIMIT}"  # To distinguish different system configurations
 
 
 def main():

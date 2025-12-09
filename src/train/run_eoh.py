@@ -12,7 +12,7 @@ API_ENDPOINT = "api.openai.com"
 
 # Get the pretrained DQN model path
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
-MODEL_PATH = BASE_DIR / "models" / "dqn_baseline_dmax_2250.pth"
+MODEL_PATH = BASE_DIR / "models" / "dqn_baseline_queue_limit_14.pth"
 
 
 def run_evolution():
@@ -28,7 +28,7 @@ def run_evolution():
         ec_n_pop=4,  # Number of populations (iterations)
         exp_n_proc=1,  # Multi-core parallel
         exp_debug_mode=False,
-        exp_output_path="./eoh_results/dmax_2250",
+        exp_output_path="./eoh_results/queue_limit_14",
     )
 
     evolution = evol.Evol(params, model_path=str(MODEL_PATH))
