@@ -12,7 +12,9 @@ V_LIGHT = get_system_config()["physics"]["c"]
 class GreedyAgent:
     @staticmethod
     def choose_nearest_to_destination(state):
-        _, arc_lengths, _, _ = state_to_arrays(state)
+        _, arc_lengths, processing_rates, _ = state_to_arrays(state)
+        mask = processing_rates > 0  # Differentiate from zero padding
+        arc_lengths[~mask] = 100000  # An extremely large number
         action = int(np.argmin(arc_lengths))
         return action
 

@@ -18,8 +18,8 @@ import os
 logger = get_logger(__name__)
 
 BASE_PATH = Path(__file__).resolve().parent.parent
-DQN_MODEL_PATH = BASE_PATH / "models" / "dqn_baseline_queue_limit_14.pth"
-HEURISTIC_CONFIG_PATH = BASE_PATH / "eoh_results" / "pops_best" / "population_generation_4.json"
+DQN_MODEL_PATH = BASE_PATH / "models" / "dqn_baseline_queue_limit_10.pth"
+HEURISTIC_CONFIG_PATH = BASE_PATH / "eoh_results" / "queue_limit_10" / "pops_best" / "population_generation_4.json"
 
 
 class MethodEvaluator:
@@ -148,7 +148,7 @@ class MethodEvaluator:
 
 
 if __name__ == "__main__":
-    eval = MethodEvaluator(n_episodes=10)
+    eval = MethodEvaluator(n_episodes=10, output_dir="eval_results/queue_limit_10")
     eval.evaluate_greedy_nearest()
     eval.evaluate_greedy_expected_time()
     eval.evaluate_dqn()
