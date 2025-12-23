@@ -81,9 +81,9 @@ line2 = ax2.plot(
     df.index,
     df["dropped_ratio"] * 100,
     color=colors[1],
-    label="Drop Rate",
+    label="Drop Ratio",
 )
-ax2.set_ylabel("Drop Rate (%)")
+ax2.set_ylabel("Drop Ratio (%)")
 
 lines = line1 + line2
 labels = [l.get_label() for l in lines]
