@@ -9,7 +9,7 @@ satellite:
     lower: 35.0
     upper: 50.0
     start_scale: 20.0  # Make S0 generate more packets to simulate congestion. Should be >> 1.0
-  queue_limit: 10  # Maximum queue capacity per satellite
+  queue_limit: 12  # Maximum queue capacity per satellite
 
 physics:
   r_earth: 6400 # km

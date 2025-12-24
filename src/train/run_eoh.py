@@ -6,13 +6,20 @@ from src.utils.get_config import get_env
 
 # Load environment variables
 get_env()
-API_KEY = os.getenv("OPENAI_API_KEY")
-MODEL = "gpt-5-mini"
-API_ENDPOINT = "api.openai.com"
+
+# Uncomment to use OpenAI API model
+# API_KEY = os.getenv("OPENAI_API_KEY")
+# MODEL = os.getenv("OPENAI_MODEL_NAME")
+# API_ENDPOINT = os.getenv("OPENAI_API_ENDPOINT")
+
+# Uncomment to use offline model
+API_KEY = os.getenv("OFFLINE_API_KEY")
+MODEL = os.getenv("OFFLINE_MODEL_NAME")
+API_ENDPOINT = os.getenv("OFFLINE_API_ENDPOINT")
 
 # Get the pretrained DQN model path
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
-MODEL_PATH = BASE_DIR / "models" / "dqn_baseline_queue_limit_10.pth"
+MODEL_PATH = BASE_DIR / "models" / "dqn_baseline_20251201.pth"
 
 
 def run_evolution():
@@ -28,7 +35,7 @@ def run_evolution():
         ec_n_pop=4,  # Number of populations (iterations)
         exp_n_proc=1,  # Multi-core parallel
         exp_debug_mode=False,
-        exp_output_path="./eoh_results/queue_limit_10",
+        exp_output_path="./eoh_results/offline_model",
     )
 
     evolution = evol.Evol(params, model_path=str(MODEL_PATH))

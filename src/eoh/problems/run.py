@@ -107,7 +107,7 @@ if __name__ == "__main__":
     import time
 
     BASE_PATH = Path.resolve(Path(__file__)).parent.parent.parent.parent
-    model_path = BASE_PATH / "models" / "dqn_baseline_queue_limit_10.pth"
+    model_path = BASE_PATH / "models" / "dqn_baseline_20251201.pth"
     problem = SatelliteRouting(model_path)
 
     # Example code string
