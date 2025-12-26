@@ -60,7 +60,7 @@ ax.set_xlabel("Episode")
 ax.set_ylabel("Objective Function (s)")
 
 # Kill automatic margins explicitly (important)
-ax.margins(x=0.02, y=0.05)
+ax.margins(x=0.025, y=0.1)
 
 ax.grid(True, alpha=0.5)
 
@@ -88,7 +88,7 @@ line1 = ax1.plot(
 
 ax1.set_xlabel("Episode")
 ax1.set_ylabel("Average AoI (s)")
-ax1.margins(x=0.02, y=0.05)
+ax1.margins(x=0.025, y=0.1)
 ax1.grid(True, alpha=0.5)
 
 ax2 = ax1.twinx()
@@ -98,7 +98,7 @@ line2 = ax2.plot(
     color=colors[1],
     label="Drop Rate",
 )
-ax2.margins(x=0.02, y=0.05)
+ax2.margins(x=0.025, y=0.1)
 ax2.set_ylabel("Drop Rate (%)")
 
 lines = line1 + line2
