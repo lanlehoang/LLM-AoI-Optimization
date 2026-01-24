@@ -83,11 +83,11 @@ line1 = ax1.plot(
     df.index,
     df["average_aoi"],
     color=colors[0],
-    label="Average AoI",
+    label="Average Delay",
 )
 
 ax1.set_xlabel("Episode")
-ax1.set_ylabel("Average AoI (s)")
+ax1.set_ylabel("Average Delay (s)")
 ax1.margins(x=0.025, y=0.1)
 ax1.grid(True, alpha=0.5)
 
